@@ -27,40 +27,29 @@ def parse_optional_float(value: str):
 def index():
     db = database.get_session()
     try:
-        edit_algorithm_id = request.args.get("edit_algorithm", type=int)
-        edit_key_id = request.args.get("edit_key", type=int)
-        edit_framework_id = request.args.get("edit_framework", type=int)
-        edit_file_id = request.args.get("edit_file", type=int)
-        edit_performance_id = request.args.get("edit_performance", type=int)
+        stats= {
+            "algorithms": len(crud.get_all_algorithms(db)),
+            "crypto_keys": len(crud.get_all_keys(db)),
+            "frameworks": len(crud.get_all_frameworks(db)),
+            "files": len(crud.get_all_files(db)),
+            "performances": len(crud.get_all_performances(db))
+        }
 
-        algorithms = crud.get_all_algorithms(db)
-        keys = crud.get_all_keys(db)
-        frameworks = crud.get_all_frameworks(db)
-        files = crud.get_all_files(db)
-        performances = crud.get_all_performances(db)
-
-        edit_algorithm = crud.get_algorithm_by_id(db, edit_algorithm_id) if edit_algorithm_id else None
-        edit_key = crud.get_key_by_id(db, edit_key_id) if edit_key_id else None
-        edit_framework = crud.get_framework_by_id(db, edit_framework_id) if edit_framework_id else None
-        edit_file = crud.get_file_by_id(db, edit_file_id) if edit_file_id else None
-        edit_performance = crud.get_performance_by_id(db, edit_performance_id) if edit_performance_id else None
-
-        return render_template(
-            "index.html",
-            algorithms=algorithms,
-            keys=keys,
-            frameworks=frameworks,
-            files=files,
-            performances=performances,
-            edit_algorithm=edit_algorithm,
-            edit_key=edit_key,
-            edit_framework=edit_framework,
-            edit_file=edit_file,
-            edit_performance=edit_performance,
-        )
+        return render_template( "index.html", stats=stats )
     finally:
         db.close()
 
+@app.route("/algorithms")
+def show_algorithms():
+    db = database.get_session()
+    try:
+        edit_algorithm_id = request.args.get("edit_algorithm", type=int)
+        algorithms = crud.get_all_algorithms(db)
+        edit_algorithm = crud.get_algorithm_by_id(db, edit_algorithm_id) if edit_algorithm_id else None
+        
+        return render_template("algorithms.html", algorithms=algorithms, edit_algorithm=edit_algorithm)
+    finally:
+        db.close()
 
 @app.route("/algorithm/save", methods=["POST"])
 def save_algorithm():
@@ -72,7 +61,7 @@ def save_algorithm():
 
         if not name or not algo_type:
             flash("Completează numele și tipul algoritmului.", "danger")
-            return redirect(url_for("index"))
+            return redirect(url_for("show_algorithms"))
 
         if algorithm_id:
             algo = crud.update_algorithm(db, algorithm_id, name, algo_type)
@@ -90,7 +79,7 @@ def save_algorithm():
     finally:
         db.close()
 
-    return redirect(url_for("index"))
+    return redirect(url_for("show_algorithms"))
 
 
 @app.route("/algorithm/delete/<int:algo_id>")
@@ -108,8 +97,20 @@ def delete_algorithm(algo_id):
     finally:
         db.close()
 
-    return redirect(url_for("index"))
+    return redirect(url_for("show_algorithms"))
 
+@app.route("/keys")
+def show_keys():
+    db = database.get_session()
+    try:
+        edit_key_id = request.args.get("edit_key", type=int)
+        keys = crud.get_all_keys(db)
+        algorithms = crud.get_all_algorithms(db)
+        edit_key = crud.get_key_by_id(db, edit_key_id) if edit_key_id else None
+        
+        return render_template("keys.html", keys=keys, algorithms=algorithms, edit_key=edit_key)
+    finally:
+        db.close()
 
 @app.route("/key/save", methods=["POST"])
 def save_key():
@@ -121,7 +122,7 @@ def save_key():
 
         if algorithm_id is None or not key_value:
             flash("Completează algoritmul și valoarea cheii.", "danger")
-            return redirect(url_for("index"))
+            return redirect(url_for("show_keys"))
 
         if key_id:
             key = crud.update_key(db, key_id, algorithm_id, key_value)
@@ -139,7 +140,7 @@ def save_key():
     finally:
         db.close()
 
-    return redirect(url_for("index"))
+    return redirect(url_for("show_keys"))
 
 
 @app.route("/key/delete/<int:key_id>")
@@ -157,8 +158,19 @@ def delete_key(key_id):
     finally:
         db.close()
 
-    return redirect(url_for("index"))
+    return redirect(url_for("show_keys"))
 
+@app.route("/frameworks")
+def show_frameworks():
+    db = database.get_session()
+    try:
+        edit_framework_id = request.args.get("edit_framework", type=int)
+        frameworks = crud.get_all_frameworks(db)
+        edit_framework = crud.get_framework_by_id(db, edit_framework_id) if edit_framework_id else None
+        
+        return render_template("frameworks.html", frameworks=frameworks, edit_framework=edit_framework)
+    finally:
+        db.close()
 
 @app.route("/framework/save", methods=["POST"])
 def save_framework():
@@ -169,7 +181,7 @@ def save_framework():
 
         if not name:
             flash("Completează numele framework-ului.", "danger")
-            return redirect(url_for("index"))
+            return redirect(url_for("show_frameworks"))
 
         if framework_id:
             framework = crud.update_framework(db, framework_id, name)
@@ -187,7 +199,7 @@ def save_framework():
     finally:
         db.close()
 
-    return redirect(url_for("index"))
+    return redirect(url_for("show_frameworks"))
 
 
 @app.route("/framework/delete/<int:framework_id>")
@@ -205,8 +217,19 @@ def delete_framework(framework_id):
     finally:
         db.close()
 
-    return redirect(url_for("index"))
+    return redirect(url_for("show_frameworks"))
 
+@app.route("/files")
+def show_files():
+    db = database.get_session()
+    try:
+        edit_file_id = request.args.get("edit_file", type=int)
+        files = crud.get_all_files(db)
+        edit_file = crud.get_file_by_id(db, edit_file_id) if edit_file_id else None
+        
+        return render_template("files.html", files=files, edit_file=edit_file)
+    finally:
+        db.close()
 
 @app.route("/file/save", methods=["POST"])
 def save_file():
@@ -220,7 +243,7 @@ def save_file():
 
         if not original_name or not status:
             flash("Completează numele original și statusul fișierului.", "danger")
-            return redirect(url_for("index"))
+            return redirect(url_for("show_files"))
 
         if file_id:
             db_file = crud.update_file(db, file_id, original_name, encrypted_name, status, hash_value)
@@ -238,7 +261,7 @@ def save_file():
     finally:
         db.close()
 
-    return redirect(url_for("index"))
+    return redirect(url_for("show_files"))
 
 
 @app.route("/file/delete/<int:file_id>")
@@ -256,8 +279,28 @@ def delete_file(file_id):
     finally:
         db.close()
 
-    return redirect(url_for("index"))
+    return redirect(url_for("show_files"))
 
+@app.route("/performances")
+def show_performances():
+    db = database.get_session()
+    try:
+        edit_performance_id = request.args.get("edit_performance", type=int)
+        
+        performances = crud.get_all_performances(db)
+        files = crud.get_all_files(db)
+        algorithms = crud.get_all_algorithms(db)
+        frameworks = crud.get_all_frameworks(db)
+        edit_performance = crud.get_performance_by_id(db, edit_performance_id) if edit_performance_id else None
+        
+        return render_template("performances.html", 
+                               performances=performances, 
+                               files=files, 
+                               algorithms=algorithms, 
+                               frameworks=frameworks, 
+                               edit_performance=edit_performance)
+    finally:
+        db.close()
 
 @app.route("/performance/save", methods=["POST"])
 def save_performance():
@@ -273,7 +316,7 @@ def save_performance():
 
         if file_id is None or algorithm_id is None or framework_id is None or not operation:
             flash("Completează toate câmpurile obligatorii pentru performanță.", "danger")
-            return redirect(url_for("index"))
+            return redirect(url_for("show_performances"))
 
         if performance_id:
             performance = crud.update_performance(
@@ -308,7 +351,7 @@ def save_performance():
     finally:
         db.close()
 
-    return redirect(url_for("index"))
+    return redirect(url_for("show_performances"))
 
 
 @app.route("/performance/delete/<int:performance_id>")
@@ -326,7 +369,7 @@ def delete_performance(performance_id):
     finally:
         db.close()
 
-    return redirect(url_for("index"))
+    return redirect(url_for("show_performances"))
 
 
 if __name__ == "__main__":

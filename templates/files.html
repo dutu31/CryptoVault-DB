@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card section-card">
+    <div class="card-header">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <span>Fișiere</span>
+            <span class="badge-soft">Stare și metadate</span>
+        </div>
+    </div>
+    <div class="card-body p-4">
+        <p class="section-subtitle mb-4">Gestionarea fișierelor și a stării lor în cadrul aplicației.</p>
+        <div class="row g-4">
+            <div class="col-lg-4">
+                <div class="card form-card h-100">
+                    <div class="card-header">
+                        {{ "Editează fișier" if edit_file else "Adaugă fișier" }}
+                    </div>
+                    <div class="card-body">
+                        <form action="{{ url_for('save_file') }}" method="post">
+                            {% if edit_file %}
+                                <input type="hidden" name="file_id" value="{{ edit_file.id }}">
+                            {% endif %}
+                            <div class="mb-3">
+                                <label class="form-label">Nume original</label>
+                                <input type="text" name="original_name" class="form-control"
+                                       value="{{ edit_file.original_name if edit_file else '' }}" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Nume criptat</label>
+                                <input type="text" name="encrypted_name" class="form-control"
+                                       value="{{ edit_file.encrypted_name if edit_file and edit_file.encrypted_name else '' }}">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Status</label>
+                                <select name="status" class="form-select" required>
+                                    <option value="Ne-criptat" {% if edit_file and edit_file.status == 'Ne-criptat' %}selected{% endif %}>Ne-criptat</option>
+                                    <option value="Criptat" {% if edit_file and edit_file.status == 'Criptat' %}selected{% endif %}>Criptat</option>
+                                    <option value="Decriptat" {% if edit_file and edit_file.status == 'Decriptat' %}selected{% endif %}>Decriptat</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Hash</label>
+                                <input type="text" name="hash_value" class="form-control"
+                                       value="{{ edit_file.hash_value if edit_file and edit_file.hash_value else '' }}">
+                            </div>
+                            <button type="submit" class="btn btn-success w-100">
+                                {{ "Actualizează" if edit_file else "Adaugă" }}
+                            </button>
+                            {% if edit_file %}
+                                <a href="{{ url_for('show_files') }}" class="btn btn-secondary w-100 mt-2">Anulează</a>
+                            {% endif %}
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-8">
+                <div class="card table-card h-100">
+                    <div class="card-header">Lista fișiere</div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Nume original</th>
+                                        <th>Nume criptat</th>
+                                        <th>Status</th>
+                                        <th>Hash</th>
+                                        <th class="text-end">Acțiuni</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                {% for file in files %}
+                                    <tr>
+                                        <td>{{ file.id }}</td>
+                                        <td><strong>{{ file.original_name }}</strong></td>
+                                        <td>{{ file.encrypted_name if file.encrypted_name else '-' }}</td>
+                                        <td>{{ file.status }}</td>
+                                        <td>{{ file.hash_value[:24] ~ '...' if file.hash_value and file.hash_value|length > 24 else (file.hash_value or '-') }}</td>
+                                        <td class="text-end">
+                                            <a href="{{ url_for('show_files', edit_file=file.id) }}" class="btn btn-warning btn-sm btn-action">Editează</a>
+                                            <a href="{{ url_for('delete_file', file_id=file.id) }}" class="btn btn-danger btn-sm btn-action"
+                                               onclick="return confirm('Sigur vrei să ștergi acest fișier?')">Șterge</a>
+                                        </td>
+                                    </tr>
+                                {% else %}
+                                    <tr>
+                                        <td colspan="6" class="text-center text-muted py-4">Nu există fișiere în baza de date.</td>
+                                    </tr>
+                                {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
