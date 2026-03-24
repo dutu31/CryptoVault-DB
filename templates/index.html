@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CryptoVault</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f4f6f9;
+            color: #1f2937;
+        }
+
+        .navbar-brand {
+            font-weight: 700;
+            letter-spacing: 0.4px;
+        }
+
+        .hero-card {
+            background: linear-gradient(135deg, #0f172a, #1e293b);
+            color: white;
+            border: none;
+            border-radius: 18px;
+        }
+
+        .hero-card h1 {
+            font-weight: 700;
+            margin-bottom: 0.4rem;
+        }
+
+        .hero-card p {
+            color: rgba(255, 255, 255, 0.82);
+            margin-bottom: 0;
+        }
+
+        .stats-card {
+            border: none;
+            border-radius: 16px;
+            box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+        }
+
+        .stats-label {
+            font-size: 0.92rem;
+            color: #6b7280;
+            margin-bottom: 0.3rem;
+        }
+
+        .stats-value {
+            font-size: 1.7rem;
+            font-weight: 700;
+            color: #111827;
+        }
+
+        .section-card {
+            border: none;
+            border-radius: 18px;
+            box-shadow: 0 10px 28px rgba(15, 23, 42, 0.07);
+            margin-bottom: 2rem;
+        }
+
+        .section-card .card-header {
+            background-color: #111827;
+            color: white;
+            border-top-left-radius: 18px;
+            border-top-right-radius: 18px;
+            padding: 1rem 1.25rem;
+            font-weight: 600;
+        }
+
+        .form-card {
+            border: 1px solid #e5e7eb;
+            border-radius: 16px;
+        }
+
+        .form-card .card-header {
+            background-color: #2563eb;
+            color: white;
+            border-top-left-radius: 16px;
+            border-top-right-radius: 16px;
+            font-weight: 600;
+        }
+
+        .table-card {
+            border: 1px solid #e5e7eb;
+            border-radius: 16px;
+        }
+
+        .table-card .card-header {
+            background-color: #1f2937;
+            color: white;
+            border-top-left-radius: 16px;
+            border-top-right-radius: 16px;
+            font-weight: 600;
+        }
+
+        .table thead th {
+            background-color: #f9fafb;
+            color: #111827;
+            font-weight: 600;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .table td, .table th {
+            vertical-align: middle;
+        }
+
+        .btn-action {
+            min-width: 90px;
+        }
+
+        .section-subtitle {
+            color: #6b7280;
+            font-size: 0.95rem;
+            margin-bottom: 0;
+        }
+
+        .badge-soft {
+            background-color: #e0e7ff;
+            color: #3730a3;
+            font-weight: 500;
+            padding: 0.45rem 0.7rem;
+            border-radius: 999px;
+        }
+
+        .page-anchor {
+            scroll-margin-top: 90px;
+        }
+
+        .small-muted {
+            font-size: 0.9rem;
+            color: #6b7280;
+        }
+    </style>
+</head>
+<body>
+
+<nav class="navbar navbar-expand-lg bg-white border-bottom sticky-top">
+    <div class="container">
+        <a class="navbar-brand" href="{{ url_for('index') }}">CryptoVault</a>
+        <div class="ms-auto d-flex gap-2 flex-wrap">
+            <a href="#algorithms" class="btn btn-outline-dark btn-sm">Algoritmi</a>
+            <a href="#keys" class="btn btn-outline-dark btn-sm">Chei</a>
+            <a href="#frameworks" class="btn btn-outline-dark btn-sm">Framework-uri</a>
+            <a href="#files" class="btn btn-outline-dark btn-sm">Fișiere</a>
+            <a href="#performances" class="btn btn-outline-dark btn-sm">Performanțe</a>
+        </div>
+    </div>
+</nav>
+
+<div class="container py-4">
+
+    <div class="card hero-card shadow-sm mb-4">
+        <div class="card-body p-4 p-lg-5">
+            <h1>CryptoVault</h1>
+            <p>Interfață web pentru administrarea algoritmilor, cheilor, framework-urilor, fișierelor și înregistrărilor de performanță.</p>
+        </div>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="mb-4">
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} alert-dismissible fade show shadow-sm" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <div class="row g-3 mb-4">
+        <div class="col-md-6 col-lg">
+            <div class="card stats-card h-100">
+                <div class="card-body">
+                    <div class="stats-label">Algoritmi</div>
+                    <div class="stats-value">{{ algorithms|length }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 col-lg">
+            <div class="card stats-card h-100">
+                <div class="card-body">
+                    <div class="stats-label">Chei</div>
+                    <div class="stats-value">{{ keys|length }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 col-lg">
+            <div class="card stats-card h-100">
+                <div class="card-body">
+                    <div class="stats-label">Framework-uri</div>
+                    <div class="stats-value">{{ frameworks|length }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 col-lg">
+            <div class="card stats-card h-100">
+                <div class="card-body">
+                    <div class="stats-label">Fișiere</div>
+                    <div class="stats-value">{{ files|length }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 col-lg">
+            <div class="card stats-card h-100">
+                <div class="card-body">
+                    <div class="stats-label">Performanțe</div>
+                    <div class="stats-value">{{ performances|length }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <section id="algorithms" class="page-anchor">
+        <div class="card section-card">
+            <div class="card-header">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <span>Algoritmi</span>
+                    <span class="badge-soft">Create · Read · Update · Delete</span>
+                </div>
+            </div>
+            <div class="card-body p-4">
+                <p class="section-subtitle mb-4">Gestionarea algoritmilor criptografici disponibili în sistem.</p>
+                <div class="row g-4">
+                    <div class="col-lg-4">
+                        <div class="card form-card h-100">
+                            <div class="card-header">
+                                {{ "Editează algoritm" if edit_algorithm else "Adaugă algoritm" }}
+                            </div>
+                            <div class="card-body">
+                                <form action="{{ url_for('save_algorithm') }}" method="post">
+                                    {% if edit_algorithm %}
+                                        <input type="hidden" name="algorithm_id" value="{{ edit_algorithm.id }}">
+                                    {% endif %}
+
+                                    <div class="mb-3">
+                                        <label class="form-label">Nume algoritm</label>
+                                        <input type="text" name="name" class="form-control"
+                                               value="{{ edit_algorithm.name if edit_algorithm else '' }}" required>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label class="form-label">Tip algoritm</label>
+                                        <select name="type" class="form-select" required>
+                                            <option value="">Selectează tipul</option>
+                                            <option value="Simetric" {% if edit_algorithm and edit_algorithm.type == 'Simetric' %}selected{% endif %}>Simetric</option>
+                                            <option value="Asimetric" {% if edit_algorithm and edit_algorithm.type == 'Asimetric' %}selected{% endif %}>Asimetric</option>
+                                        </select>
+                                    </div>
+
+                                    <button type="submit" class="btn btn-success w-100">
+                                        {{ "Actualizează" if edit_algorithm else "Adaugă" }}
+                                    </button>
+
+                                    {% if edit_algorithm %}
+                                        <a href="{{ url_for('index') }}#algorithms" class="btn btn-secondary w-100 mt-2">Anulează</a>
+                                    {% endif %}
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-lg-8">
+                        <div class="card table-card h-100">
+                            <div class="card-header">Lista algoritmi</div>
+                            <div class="card-body">
+                                <div class="table-responsive">
+                                    <table class="table table-hover align-middle">
+                                        <thead>
+                                            <tr>
+                                                <th>ID</th>
+                                                <th>Nume</th>
+                                                <th>Tip</th>
+                                                <th class="text-end">Acțiuni</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                        {% for algo in algorithms %}
+                                            <tr>
+                                                <td>{{ algo.id }}</td>
+                                                <td><strong>{{ algo.name }}</strong></td>
+                                                <td>{{ algo.type }}</td>
+                                                <td class="text-end">
+                                                    <a href="{{ url_for('index', edit_algorithm=algo.id) }}#algorithms" class="btn btn-warning btn-sm btn-action">Editează</a>
+                                                    <a href="{{ url_for('delete_algorithm', algo_id=algo.id) }}" class="btn btn-danger btn-sm btn-action"
+                                                       onclick="return confirm('Sigur vrei să ștergi acest algoritm?')">Șterge</a>
+                                                </td>
+                                            </tr>
+                                        {% else %}
+                                            <tr>
+                                                <td colspan="4" class="text-center text-muted py-4">Nu există algoritmi în baza de date.</td>
+                                            </tr>
+                                        {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="keys" class="page-anchor">
+        <div class="card section-card">
+            <div class="card-header">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <span>Chei</span>
+                    <span class="badge-soft">Administrare chei</span>
+                </div>
+            </div>
+            <div class="card-body p-4">
+                <p class="section-subtitle mb-4">Gestionarea cheilor asociate algoritmilor existenți.</p>
+                <div class="row g-4">
+                    <div class="col-lg-4">
+                        <div class="card form-card h-100">
+                            <div class="card-header">
+                                {{ "Editează cheie" if edit_key else "Adaugă cheie" }}
+                            </div>
+                            <div class="card-body">
+                                {% if algorithms %}
+                                <form action="{{ url_for('save_key') }}" method="post">
+                                    {% if edit_key %}
+                                        <input type="hidden" name="key_id" value="{{ edit_key.id }}">
+                                    {% endif %}
+
+                                    <div class="mb-3">
+                                        <label class="form-label">Algoritm</label>
+                                        <select name="algorithm_id" class="form-select" required>
+                                            {% for algo in algorithms %}
+                                                <option value="{{ algo.id }}" {% if edit_key and edit_key.algorithm_id == algo.id %}selected{% endif %}>
+                                                    {{ algo.name }} ({{ algo.type }})
+                                                </option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label class="form-label">Valoare cheie</label>
+                                        <textarea name="key_value" class="form-control" rows="5" required>{{ edit_key.key_value if edit_key else '' }}</textarea>
+                                        <div class="form-text">Poți introduce o valoare demonstrativă pentru milestone 1.</div>
+                                    </div>
+
+                                    <button type="submit" class="btn btn-success w-100">
+                                        {{ "Actualizează" if edit_key else "Adaugă" }}
+                                    </button>
+
+                                    {% if edit_key %}
+                                        <a href="{{ url_for('index') }}#keys" class="btn btn-secondary w-100 mt-2">Anulează</a>
+                                    {% endif %}
+                                </form>
+                                {% else %}
+                                    <div class="alert alert-warning mb-0">
+                                        Adaugă mai întâi cel puțin un algoritm.
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-lg-8">
+                        <div class="card table-card h-100">
+                            <div class="card-header">Lista chei</div>
+                            <div class="card-body">
+                                <div class="table-responsive">
+                                    <table class="table table-hover align-middle">
+                                        <thead>
+                                            <tr>
+                                                <th>ID</th>
+                                                <th>Algoritm</th>
+                                                <th>Cheie</th>
+                                                <th>Creată la</th>
+                                                <th class="text-end">Acțiuni</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                        {% for key in keys %}
+                                            <tr>
+                                                <td>{{ key.id }}</td>
+                                                <td>{{ key.algorithm.name }}</td>
+                                                <td>
+                                                    {% if key.key_value|length > 40 %}
+                                                        {{ key.key_value[:40] }}...
+                                                    {% else %}
+                                                        {{ key.key_value }}
+                                                    {% endif %}
+                                                </td>
+                                                <td>{{ key.created_at }}</td>
+                                                <td class="text-end">
+                                                    <a href="{{ url_for('index', edit_key=key.id) }}#keys" class="btn btn-warning btn-sm btn-action">Editează</a>
+                                                    <a href="{{ url_for('delete_key', key_id=key.id) }}" class="btn btn-danger btn-sm btn-action"
+                                                       onclick="return confirm('Sigur vrei să ștergi această cheie?')">Șterge</a>
+                                                </td>
+                                            </tr>
+                                        {% else %}
+                                            <tr>
+                                                <td colspan="5" class="text-center text-muted py-4">Nu există chei în baza de date.</td>
+                                            </tr>
+                                        {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="frameworks" class="page-anchor">
+        <div class="card section-card">
+            <div class="card-header">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <span>Framework-uri</span>
+                    <span class="badge-soft">Instrumente asociate proiectului</span>
+                </div>
+            </div>
+            <div class="card-body p-4">
+                <p class="section-subtitle mb-4">Gestionarea framework-urilor și a instrumentelor utilizate.</p>
+                <div class="row g-4">
+                    <div class="col-lg-4">
+                        <div class="card form-card h-100">
+                            <div class="card-header">
+                                {{ "Editează framework" if edit_framework else "Adaugă framework" }}
+                            </div>
+                            <div class="card-body">
+                                <form action="{{ url_for('save_framework') }}" method="post">
+                                    {% if edit_framework %}
+                                        <input type="hidden" name="framework_id" value="{{ edit_framework.id }}">
+                                    {% endif %}
+
+                                    <div class="mb-3">
+                                        <label class="form-label">Nume framework</label>
+                                        <input type="text" name="name" class="form-control"
+                                               value="{{ edit_framework.name if edit_framework else '' }}" required>
+                                    </div>
+
+                                    <button type="submit" class="btn btn-success w-100">
+                                        {{ "Actualizează" if edit_framework else "Adaugă" }}
+                                    </button>
+
+                                    {% if edit_framework %}
+                                        <a href="{{ url_for('index') }}#frameworks" class="btn btn-secondary w-100 mt-2">Anulează</a>
+                                    {% endif %}
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-lg-8">
+                        <div class="card table-card h-100">
+                            <div class="card-header">Lista framework-uri</div>
+                            <div class="card-body">
+                                <div class="table-responsive">
+                                    <table class="table table-hover align-middle">
+                                        <thead>
+                                            <tr>
+                                                <th>ID</th>
+                                                <th>Nume</th>
+                                                <th class="text-end">Acțiuni</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                        {% for framework in frameworks %}
+                                            <tr>
+                                                <td>{{ framework.id }}</td>
+                                                <td><strong>{{ framework.name }}</strong></td>
+                                                <td class="text-end">
+                                                    <a href="{{ url_for('index', edit_framework=framework.id) }}#frameworks" class="btn btn-warning btn-sm btn-action">Editează</a>
+                                                    <a href="{{ url_for('delete_framework', framework_id=framework.id) }}" class="btn btn-danger btn-sm btn-action"
+                                                       onclick="return confirm('Sigur vrei să ștergi acest framework?')">Șterge</a>
+                                                </td>
+                                            </tr>
+                                        {% else %}
+                                            <tr>
+                                                <td colspan="3" class="text-center text-muted py-4">Nu există framework-uri în baza de date.</td>
+                                            </tr>
+                                        {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="files" class="page-anchor">
+        <div class="card section-card">
+            <div class="card-header">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <span>Fișiere</span>
+                    <span class="badge-soft">Stare și metadate</span>
+                </div>
+            </div>
+            <div class="card-body p-4">
+                <p class="section-subtitle mb-4">Gestionarea fișierelor și a stării lor în cadrul aplicației.</p>
+                <div class="row g-4">
+                    <div class="col-lg-4">
+                        <div class="card form-card h-100">
+                            <div class="card-header">
+                                {{ "Editează fișier" if edit_file else "Adaugă fișier" }}
+                            </div>
+                            <div class="card-body">
+                                <form action="{{ url_for('save_file') }}" method="post">
+                                    {% if edit_file %}
+                                        <input type="hidden" name="file_id" value="{{ edit_file.id }}">
+                                    {% endif %}
+
+                                    <div class="mb-3">
+                                        <label class="form-label">Nume original</label>
+                                        <input type="text" name="original_name" class="form-control"
+                                               value="{{ edit_file.original_name if edit_file else '' }}" required>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label class="form-label">Nume criptat</label>
+                                        <input type="text" name="encrypted_name" class="form-control"
+                                               value="{{ edit_file.encrypted_name if edit_file and edit_file.encrypted_name else '' }}">
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label class="form-label">Status</label>
+                                        <select name="status" class="form-select" required>
+                                            <option value="Ne-criptat" {% if edit_file and edit_file.status == 'Ne-criptat' %}selected{% endif %}>Ne-criptat</option>
+                                            <option value="Criptat" {% if edit_file and edit_file.status == 'Criptat' %}selected{% endif %}>Criptat</option>
+                                            <option value="Decriptat" {% if edit_file and edit_file.status == 'Decriptat' %}selected{% endif %}>Decriptat</option>
+                                        </select>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label class="form-label">Hash</label>
+                                        <input type="text" name="hash_value" class="form-control"
+                                               value="{{ edit_file.hash_value if edit_file and edit_file.hash_value else '' }}">
+                                    </div>
+
+                                    <button type="submit" class="btn btn-success w-100">
+                                        {{ "Actualizează" if edit_file else "Adaugă" }}
+                                    </button>
+
+                                    {% if edit_file %}
+                                        <a href="{{ url_for('index') }}#files" class="btn btn-secondary w-100 mt-2">Anulează</a>
+                                    {% endif %}
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-lg-8">
+                        <div class="card table-card h-100">
+                            <div class="card-header">Lista fișiere</div>
+                            <div class="card-body">
+                                <div class="table-responsive">
+                                    <table class="table table-hover align-middle">
+                                        <thead>
+                                            <tr>
+                                                <th>ID</th>
+                                                <th>Nume original</th>
+                                                <th>Nume criptat</th>
+                                                <th>Status</th>
+                                                <th>Hash</th>
+                                                <th class="text-end">Acțiuni</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                        {% for file in files %}
+                                            <tr>
+                                                <td>{{ file.id }}</td>
+                                                <td><strong>{{ file.original_name }}</strong></td>
+                                                <td>{{ file.encrypted_name if file.encrypted_name else '-' }}</td>
+                                                <td>{{ file.status }}</td>
+                                                <td>
+                                                    {% if file.hash_value %}
+                                                        {% if file.hash_value|length > 24 %}
+                                                            {{ file.hash_value[:24] }}...
+                                                        {% else %}
+                                                            {{ file.hash_value }}
+                                                        {% endif %}
+                                                    {% else %}
+                                                        -
+                                                    {% endif %}
+                                                </td>
+                                                <td class="text-end">
+                                                    <a href="{{ url_for('index', edit_file=file.id) }}#files" class="btn btn-warning btn-sm btn-action">Editează</a>
+                                                    <a href="{{ url_for('delete_file', file_id=file.id) }}" class="btn btn-danger btn-sm btn-action"
+                                                       onclick="return confirm('Sigur vrei să ștergi acest fișier?')">Șterge</a>
+                                                </td>
+                                            </tr>
+                                        {% else %}
+                                            <tr>
+                                                <td colspan="6" class="text-center text-muted py-4">Nu există fișiere în baza de date.</td>
+                                            </tr>
+                                        {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="performances" class="page-anchor">
+        <div class="card section-card">
+            <div class="card-header">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <span>Performanțe</span>
+                    <span class="badge-soft">Măsurători asociate operațiilor</span>
+                </div>
+            </div>
+            <div class="card-body p-4">
+                <p class="section-subtitle mb-4">Gestionarea rezultatelor de performanță din sistem.</p>
+                <div class="row g-4">
+                    <div class="col-lg-4">
+                        <div class="card form-card h-100">
+                            <div class="card-header">
+                                {{ "Editează performanță" if edit_performance else "Adaugă performanță" }}
+                            </div>
+                            <div class="card-body">
+                                {% if files and algorithms and frameworks %}
+                                <form action="{{ url_for('save_performance') }}" method="post">
+                                    {% if edit_performance %}
+                                        <input type="hidden" name="performance_id" value="{{ edit_performance.id }}">
+                                    {% endif %}
+
+                                    <div class="mb-3">
+                                        <label class="form-label">Fișier</label>
+                                        <select name="file_id" class="form-select" required>
+                                            {% for file in files %}
+                                                <option value="{{ file.id }}" {% if edit_performance and edit_performance.file_id == file.id %}selected{% endif %}>
+                                                    {{ file.original_name }}
+                                                </option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label class="form-label">Algoritm</label>
+                                        <select name="algorithm_id" class="form-select" required>
+                                            {% for algo in algorithms %}
+                                                <option value="{{ algo.id }}" {% if edit_performance and edit_performance.algorithm_id == algo.id %}selected{% endif %}>
+                                                    {{ algo.name }}
+                                                </option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label class="form-label">Framework</label>
+                                        <select name="framework_id" class="form-select" required>
+                                            {% for framework in frameworks %}
+                                                <option value="{{ framework.id }}" {% if edit_performance and edit_performance.framework_id == framework.id %}selected{% endif %}>
+                                                    {{ framework.name }}
+                                                </option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label class="form-label">Operație</label>
+                                        <input type="text" name="operation" class="form-control"
+                                               value="{{ edit_performance.operation if edit_performance else '' }}" required>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label class="form-label">Timp (ms)</label>
+                                        <input type="number" step="0.01" name="time_taken_ms" class="form-control"
+                                               value="{{ edit_performance.time_taken_ms if edit_performance and edit_performance.time_taken_ms is not none else '' }}">
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label class="form-label">Memorie (KB)</label>
+                                        <input type="number" step="0.01" name="memory_used_kb" class="form-control"
+                                               value="{{ edit_performance.memory_used_kb if edit_performance and edit_performance.memory_used_kb is not none else '' }}">
+                                    </div>
+
+                                    <button type="submit" class="btn btn-success w-100">
+                                        {{ "Actualizează" if edit_performance else "Adaugă" }}
+                                    </button>
+
+                                    {% if edit_performance %}
+                                        <a href="{{ url_for('index') }}#performances" class="btn btn-secondary w-100 mt-2">Anulează</a>
+                                    {% endif %}
+                                </form>
+                                {% else %}
+                                    <div class="alert alert-warning mb-0">
+                                        Pentru această secțiune ai nevoie de cel puțin un fișier, un algoritm și un framework.
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-lg-8">
+                        <div class="card table-card h-100">
+                            <div class="card-header">Lista performanțe</div>
+                            <div class="card-body">
+                                <div class="table-responsive">
+                                    <table class="table table-hover align-middle">
+                                        <thead>
+                                            <tr>
+                                                <th>ID</th>
+                                                <th>Fișier</th>
+                                                <th>Algoritm</th>
+                                                <th>Framework</th>
+                                                <th>Operație</th>
+                                                <th>Timp (ms)</th>
+                                                <th>Memorie (KB)</th>
+                                                <th class="text-end">Acțiuni</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                        {% for perf in performances %}
+                                            <tr>
+                                                <td>{{ perf.id }}</td>
+                                                <td>{{ perf.file.original_name }}</td>
+                                                <td>{{ perf.algorithm.name }}</td>
+                                                <td>{{ perf.framework.name }}</td>
+                                                <td>{{ perf.operation }}</td>
+                                                <td>{{ perf.time_taken_ms if perf.time_taken_ms is not none else '-' }}</td>
+                                                <td>{{ perf.memory_used_kb if perf.memory_used_kb is not none else '-' }}</td>
+                                                <td class="text-end">
+                                                    <a href="{{ url_for('index', edit_performance=perf.id) }}#performances" class="btn btn-warning btn-sm btn-action">Editează</a>
+                                                    <a href="{{ url_for('delete_performance', performance_id=perf.id) }}" class="btn btn-danger btn-sm btn-action"
+                                                       onclick="return confirm('Sigur vrei să ștergi această înregistrare?')">Șterge</a>
+                                                </td>
+                                            </tr>
+                                        {% else %}
+                                            <tr>
+                                                <td colspan="8" class="text-center text-muted py-4">Nu există înregistrări de performanță în baza de date.</td>
+                                            </tr>
+                                        {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <p class="small-muted mt-3 mb-0">
+                                    Pentru milestone 1, această secțiune este utilă pentru demonstrarea operațiilor CRUD și a structurii bazei de date.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
