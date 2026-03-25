@@ -5,7 +5,6 @@
     <div class="card-header">
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
             <span>Performanțe</span>
-            <span class="badge-soft">Măsurători asociate operațiilor</span>
         </div>
     </div>
     <div class="card-body p-4">
@@ -14,19 +13,16 @@
             <div class="col-lg-4">
                 <div class="card form-card h-100">
                     <div class="card-header">
-                        {{ "Editează performanță" if edit_performance else "Adaugă performanță" }}
+                        Adaugă performanță
                     </div>
                     <div class="card-body">
                         {% if files and algorithms and frameworks %}
                         <form action="{{ url_for('save_performance') }}" method="post">
-                            {% if edit_performance %}
-                                <input type="hidden" name="performance_id" value="{{ edit_performance.id }}">
-                            {% endif %}
                             <div class="mb-3">
                                 <label class="form-label">Fișier</label>
                                 <select name="file_id" class="form-select" required>
                                     {% for file in files %}
-                                        <option value="{{ file.id }}" {% if edit_performance and edit_performance.file_id == file.id %}selected{% endif %}>
+                                        <option value="{{ file.id }}">
                                             {{ file.original_name }}
                                         </option>
                                     {% endfor %}
@@ -36,7 +32,7 @@
                                 <label class="form-label">Algoritm</label>
                                 <select name="algorithm_id" class="form-select" required>
                                     {% for algo in algorithms %}
-                                        <option value="{{ algo.id }}" {% if edit_performance and edit_performance.algorithm_id == algo.id %}selected{% endif %}>
+                                        <option value="{{ algo.id }}">
                                             {{ algo.name }}
                                         </option>
                                     {% endfor %}
@@ -46,7 +42,7 @@
                                 <label class="form-label">Framework</label>
                                 <select name="framework_id" class="form-select" required>
                                     {% for framework in frameworks %}
-                                        <option value="{{ framework.id }}" {% if edit_performance and edit_performance.framework_id == framework.id %}selected{% endif %}>
+                                        <option value="{{ framework.id }}">
                                             {{ framework.name }}
                                         </option>
                                     {% endfor %}
@@ -54,25 +50,19 @@
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Operație</label>
-                                <input type="text" name="operation" class="form-control"
-                                       value="{{ edit_performance.operation if edit_performance else '' }}" required>
+                                <input type="text" name="operation" class="form-control" required>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Timp (ms)</label>
-                                <input type="number" step="0.01" name="time_taken_ms" class="form-control"
-                                       value="{{ edit_performance.time_taken_ms if edit_performance and edit_performance.time_taken_ms is not none else '' }}">
+                                <input type="number" step="0.01" name="time_taken_ms" class="form-control">
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Memorie (KB)</label>
-                                <input type="number" step="0.01" name="memory_used_kb" class="form-control"
-                                       value="{{ edit_performance.memory_used_kb if edit_performance and edit_performance.memory_used_kb is not none else '' }}">
+                                <input type="number" step="0.01" name="memory_used_kb" class="form-control">
                             </div>
                             <button type="submit" class="btn btn-success w-100">
-                                {{ "Actualizează" if edit_performance else "Adaugă" }}
+                                Adaugă
                             </button>
-                            {% if edit_performance %}
-                                <a href="{{ url_for('show_performances') }}" class="btn btn-secondary w-100 mt-2">Anulează</a>
-                            {% endif %}
                         </form>
                         {% else %}
                             <div class="alert alert-warning mb-0">Pentru această secțiune ai nevoie de cel puțin un fișier, un algoritm și un framework.</div>
@@ -96,7 +86,7 @@
                                         <th>Operație</th>
                                         <th>Timp (ms)</th>
                                         <th>Memorie (KB)</th>
-                                        <th class="text-end">Acțiuni</th>
+                                        <th class="text-end">Acțiune</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -110,7 +100,6 @@
                                         <td>{{ perf.time_taken_ms if perf.time_taken_ms is not none else '-' }}</td>
                                         <td>{{ perf.memory_used_kb if perf.memory_used_kb is not none else '-' }}</td>
                                         <td class="text-end">
-                                            <a href="{{ url_for('show_performances', edit_performance=perf.id) }}" class="btn btn-warning btn-sm btn-action">Editează</a>
                                             <a href="{{ url_for('delete_performance', performance_id=perf.id) }}" class="btn btn-danger btn-sm btn-action"
                                                onclick="return confirm('Sigur vrei să ștergi această înregistrare?')">Șterge</a>
                                         </td>

@@ -1,4 +1,5 @@
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 import models
 
 
@@ -18,6 +19,13 @@ def get_all_algorithms(db: Session):
 
 def get_algorithm_by_id(db: Session, algo_id: int):
     return db.query(models.Algorithm).filter(models.Algorithm.id == algo_id).first()
+
+def get_algorithm_by_name(db: Session, name: str):
+    return (
+        db.query(models.Algorithm)
+        .filter(func.lower(models.Algorithm.name) == name.strip().lower())
+        .first()
+    )
 
 
 def update_algorithm(db: Session, algo_id: int, name: str, algo_type: str):
@@ -56,16 +64,15 @@ def get_all_keys(db: Session):
 def get_key_by_id(db: Session, key_id: int):
     return db.query(models.Key).filter(models.Key.id == key_id).first()
 
-
-def update_key(db: Session, key_id: int, algorithm_id: int, key_value: str):
-    db_key = get_key_by_id(db, key_id)
-    if db_key:
-        db_key.algorithm_id = algorithm_id
-        db_key.key_value = key_value
-        db.commit()
-        db.refresh(db_key)
-    return db_key
-
+def get_key_by_algorithm_and_value(db: Session, algorithm_id: int, key_value: str):
+    return (
+        db.query(models.Key)
+        .filter(
+            models.Key.algorithm_id == algorithm_id,
+            models.Key.key_value == key_value.strip()
+        )
+        .first()
+    )
 
 def delete_key(db: Session, key_id: int):
     db_key = get_key_by_id(db, key_id)
@@ -92,6 +99,13 @@ def get_all_frameworks(db: Session):
 
 def get_framework_by_id(db: Session, framework_id: int):
     return db.query(models.Framework).filter(models.Framework.id == framework_id).first()
+
+def get_framework_by_name(db: Session, name: str):
+    return (
+        db.query(models.Framework)
+        .filter(func.lower(models.Framework.name) == name.strip().lower())
+        .first()
+    )
 
 
 def update_framework(db: Session, framework_id: int, name: str):
@@ -133,6 +147,13 @@ def get_all_files(db: Session):
 
 def get_file_by_id(db: Session, file_id: int):
     return db.query(models.File).filter(models.File.id == file_id).first()
+
+def get_file_by_original_name(db: Session, original_name: str):
+    return (
+        db.query(models.File)
+        .filter(func.lower(models.File.original_name) == original_name.strip().lower())
+        .first()
+    )
 
 
 def update_file(db: Session, file_id: int, original_name: str, encrypted_name: str = None, status: str = "Ne-criptat", hash_value: str = None):
@@ -179,21 +200,6 @@ def get_all_performances(db: Session):
 
 def get_performance_by_id(db: Session, performance_id: int):
     return db.query(models.Performance).filter(models.Performance.id == performance_id).first()
-
-
-def update_performance(db: Session, performance_id: int, file_id: int, algorithm_id: int, framework_id: int, operation: str, time_taken_ms: float = None, memory_used_kb: float = None):
-    db_performance = get_performance_by_id(db, performance_id)
-    if db_performance:
-        db_performance.file_id = file_id
-        db_performance.algorithm_id = algorithm_id
-        db_performance.framework_id = framework_id
-        db_performance.operation = operation
-        db_performance.time_taken_ms = time_taken_ms
-        db_performance.memory_used_kb = memory_used_kb
-        db.commit()
-        db.refresh(db_performance)
-    return db_performance
-
 
 def delete_performance(db: Session, performance_id: int):
     db_performance = get_performance_by_id(db, performance_id)

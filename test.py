@@ -91,11 +91,6 @@ def main():
         assert any(k.id == key_id for k in keys)
         print_ok("READ keys")
 
-        updated_key = crud.update_key(db, key_id, algorithm_id, f"TEST-KEY-UPD-{suffix}")
-        assert updated_key is not None
-        assert updated_key.key_value == f"TEST-KEY-UPD-{suffix}"
-        print_ok("UPDATE key")
-
         # -------------------- PERFORMANCE --------------------
         performance = crud.create_performance(
             db,
@@ -113,21 +108,6 @@ def main():
         performances = crud.get_all_performances(db)
         assert any(p.id == performance_id for p in performances)
         print_ok("READ performances")
-
-        updated_performance = crud.update_performance(
-            db,
-            performance_id=performance_id,
-            file_id=file_id,
-            algorithm_id=algorithm_id,
-            framework_id=framework_id,
-            operation="decrypt",
-            time_taken_ms=18.0,
-            memory_used_kb=300.0
-        )
-        assert updated_performance is not None
-        assert updated_performance.operation == "decrypt"
-        assert updated_performance.time_taken_ms == 18.0
-        print_ok("UPDATE performance")
 
         # -------------------- DELETE --------------------
         assert crud.delete_performance(db, performance_id) is True

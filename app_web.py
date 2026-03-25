@@ -63,13 +63,23 @@ def save_algorithm():
             flash("Completează numele și tipul algoritmului.", "danger")
             return redirect(url_for("show_algorithms"))
 
+        existing_algorithm = crud.get_algorithm_by_name(db, name)
+
         if algorithm_id:
+            if existing_algorithm and existing_algorithm.id != algorithm_id:
+                flash("Există deja un algoritm cu acest nume în listă.", "warning")
+                return redirect(url_for("show_algorithms"))
+
             algo = crud.update_algorithm(db, algorithm_id, name, algo_type)
             if algo:
                 flash("Algoritmul a fost actualizat cu succes.", "success")
             else:
                 flash("Algoritmul nu a fost găsit.", "danger")
         else:
+            if existing_algorithm:
+                flash("Algoritmul există deja în listă.", "warning")
+                return redirect(url_for("show_algorithms"))
+
             crud.create_algorithm(db, name, algo_type)
             flash("Algoritmul a fost adăugat cu succes.", "success")
 
@@ -103,12 +113,10 @@ def delete_algorithm(algo_id):
 def show_keys():
     db = database.get_session()
     try:
-        edit_key_id = request.args.get("edit_key", type=int)
         keys = crud.get_all_keys(db)
         algorithms = crud.get_all_algorithms(db)
-        edit_key = crud.get_key_by_id(db, edit_key_id) if edit_key_id else None
-        
-        return render_template("keys.html", keys=keys, algorithms=algorithms, edit_key=edit_key)
+
+        return render_template("keys.html", keys=keys, algorithms=algorithms)
     finally:
         db.close()
 
@@ -116,7 +124,6 @@ def show_keys():
 def save_key():
     db = database.get_session()
     try:
-        key_id = request.form.get("key_id", type=int)
         algorithm_id = request.form.get("algorithm_id", type=int)
         key_value = request.form.get("key_value", "").strip()
 
@@ -124,15 +131,13 @@ def save_key():
             flash("Completează algoritmul și valoarea cheii.", "danger")
             return redirect(url_for("show_keys"))
 
-        if key_id:
-            key = crud.update_key(db, key_id, algorithm_id, key_value)
-            if key:
-                flash("Cheia a fost actualizată cu succes.", "success")
-            else:
-                flash("Cheia nu a fost găsită.", "danger")
-        else:
-            crud.create_key(db, algorithm_id, key_value)
-            flash("Cheia a fost adăugată cu succes.", "success")
+        existing_key = crud.get_key_by_algorithm_and_value(db, algorithm_id, key_value)
+        if existing_key:
+            flash("Această cheie există deja pentru algoritmul selectat.", "warning")
+            return redirect(url_for("show_keys"))
+
+        crud.create_key(db, algorithm_id, key_value)
+        flash("Cheia a fost adăugată cu succes.", "success")
 
     except Exception as exc:
         db.rollback()
@@ -183,13 +188,23 @@ def save_framework():
             flash("Completează numele framework-ului.", "danger")
             return redirect(url_for("show_frameworks"))
 
+        existing_framework = crud.get_framework_by_name(db, name)
+
         if framework_id:
+            if existing_framework and existing_framework.id != framework_id:
+                flash("Există deja un framework cu acest nume în listă.", "warning")
+                return redirect(url_for("show_frameworks"))
+
             framework = crud.update_framework(db, framework_id, name)
             if framework:
                 flash("Framework-ul a fost actualizat cu succes.", "success")
             else:
                 flash("Framework-ul nu a fost găsit.", "danger")
         else:
+            if existing_framework:
+                flash("Framework-ul există deja în listă.", "warning")
+                return redirect(url_for("show_frameworks"))
+
             crud.create_framework(db, name)
             flash("Framework-ul a fost adăugat cu succes.", "success")
 
@@ -245,13 +260,23 @@ def save_file():
             flash("Completează numele original și statusul fișierului.", "danger")
             return redirect(url_for("show_files"))
 
+        existing_file = crud.get_file_by_original_name(db, original_name)
+
         if file_id:
+            if existing_file and existing_file.id != file_id:
+                flash("Există deja un fișier cu acest nume original în listă.", "warning")
+                return redirect(url_for("show_files"))
+
             db_file = crud.update_file(db, file_id, original_name, encrypted_name, status, hash_value)
             if db_file:
                 flash("Fișierul a fost actualizat cu succes.", "success")
             else:
                 flash("Fișierul nu a fost găsit.", "danger")
         else:
+            if existing_file:
+                flash("Fișierul există deja în listă.", "warning")
+                return redirect(url_for("show_files"))
+
             crud.create_file(db, original_name, encrypted_name, status, hash_value)
             flash("Fișierul a fost adăugat cu succes.", "success")
 
@@ -285,20 +310,18 @@ def delete_file(file_id):
 def show_performances():
     db = database.get_session()
     try:
-        edit_performance_id = request.args.get("edit_performance", type=int)
-        
         performances = crud.get_all_performances(db)
         files = crud.get_all_files(db)
         algorithms = crud.get_all_algorithms(db)
         frameworks = crud.get_all_frameworks(db)
-        edit_performance = crud.get_performance_by_id(db, edit_performance_id) if edit_performance_id else None
-        
-        return render_template("performances.html", 
-                               performances=performances, 
-                               files=files, 
-                               algorithms=algorithms, 
-                               frameworks=frameworks, 
-                               edit_performance=edit_performance)
+
+        return render_template(
+            "performances.html",
+            performances=performances,
+            files=files,
+            algorithms=algorithms,
+            frameworks=frameworks
+        )
     finally:
         db.close()
 
@@ -306,7 +329,6 @@ def show_performances():
 def save_performance():
     db = database.get_session()
     try:
-        performance_id = request.form.get("performance_id", type=int)
         file_id = request.form.get("file_id", type=int)
         algorithm_id = request.form.get("algorithm_id", type=int)
         framework_id = request.form.get("framework_id", type=int)
@@ -318,32 +340,16 @@ def save_performance():
             flash("Completează toate câmpurile obligatorii pentru performanță.", "danger")
             return redirect(url_for("show_performances"))
 
-        if performance_id:
-            performance = crud.update_performance(
-                db,
-                performance_id,
-                file_id,
-                algorithm_id,
-                framework_id,
-                operation,
-                time_taken_ms,
-                memory_used_kb,
-            )
-            if performance:
-                flash("Înregistrarea de performanță a fost actualizată cu succes.", "success")
-            else:
-                flash("Înregistrarea de performanță nu a fost găsită.", "danger")
-        else:
-            crud.create_performance(
-                db,
-                file_id,
-                algorithm_id,
-                framework_id,
-                operation,
-                time_taken_ms,
-                memory_used_kb,
-            )
-            flash("Înregistrarea de performanță a fost adăugată cu succes.", "success")
+        crud.create_performance(
+            db,
+            file_id,
+            algorithm_id,
+            framework_id,
+            operation,
+            time_taken_ms,
+            memory_used_kb,
+        )
+        flash("Înregistrarea de performanță a fost adăugată cu succes.", "success")
 
     except Exception as exc:
         db.rollback()
