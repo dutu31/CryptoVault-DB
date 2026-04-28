@@ -8,47 +8,18 @@
         </div>
     </div>
     <div class="card-body p-4">
-        <p class="section-subtitle mb-4">Gestionarea fișierelor și a stării lor în cadrul aplicației.</p>
+        <p class="section-subtitle mb-4">Gestionarea fișierelor originale, criptate și decriptate.</p>
         <div class="row g-4">
             <div class="col-lg-4">
                 <div class="card form-card h-100">
-                    <div class="card-header">
-                        {{ "Editează fișier" if edit_file else "Adaugă fișier" }}
-                    </div>
+                    <div class="card-header">Încarcă fișier</div>
                     <div class="card-body">
-                        <form action="{{ url_for('save_file') }}" method="post">
-                            {% if edit_file %}
-                                <input type="hidden" name="file_id" value="{{ edit_file.id }}">
-                            {% endif %}
+                        <form action="{{ url_for('save_file') }}" method="post" enctype="multipart/form-data">
                             <div class="mb-3">
-                                <label class="form-label">Nume original</label>
-                                <input type="text" name="original_name" class="form-control"
-                                       value="{{ edit_file.original_name if edit_file else '' }}" required>
+                                <label class="form-label">Fișier</label>
+                                <input type="file" name="upload_file" class="form-control" required>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label">Nume criptat</label>
-                                <input type="text" name="encrypted_name" class="form-control"
-                                       value="{{ edit_file.encrypted_name if edit_file and edit_file.encrypted_name else '' }}">
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Status</label>
-                                <select name="status" class="form-select" required>
-                                    <option value="Ne-criptat" {% if edit_file and edit_file.status == 'Ne-criptat' %}selected{% endif %}>Ne-criptat</option>
-                                    <option value="Criptat" {% if edit_file and edit_file.status == 'Criptat' %}selected{% endif %}>Criptat</option>
-                                    <option value="Decriptat" {% if edit_file and edit_file.status == 'Decriptat' %}selected{% endif %}>Decriptat</option>
-                                </select>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Hash</label>
-                                <input type="text" name="hash_value" class="form-control"
-                                       value="{{ edit_file.hash_value if edit_file and edit_file.hash_value else '' }}">
-                            </div>
-                            <button type="submit" class="btn btn-success w-100">
-                                {{ "Actualizează" if edit_file else "Adaugă" }}
-                            </button>
-                            {% if edit_file %}
-                                <a href="{{ url_for('show_files') }}" class="btn btn-secondary w-100 mt-2">Anulează</a>
-                            {% endif %}
+                            <button type="submit" class="btn btn-success w-100">Încarcă</button>
                         </form>
                     </div>
                 </div>
@@ -63,10 +34,12 @@
                                 <thead>
                                     <tr>
                                         <th>ID</th>
-                                        <th>Nume original</th>
-                                        <th>Nume criptat</th>
+                                        <th>Nume</th>
                                         <th>Status</th>
-                                        <th>Hash</th>
+                                        <th>Dimensiune</th>
+                                        <th>Hash original</th>
+                                        <th>Hash criptat</th>
+                                        <th>Hash decriptat</th>
                                         <th class="text-end">Acțiuni</th>
                                     </tr>
                                 </thead>
@@ -74,24 +47,43 @@
                                 {% for file in files %}
                                     <tr>
                                         <td>{{ file.id }}</td>
-                                        <td><strong>{{ file.original_name }}</strong></td>
-                                        <td>{{ file.encrypted_name if file.encrypted_name else '-' }}</td>
+                                        <td>
+                                            <strong>{{ file.original_name }}</strong>
+                                            {% if file.encrypted_name %}
+                                                <div class="small-muted">Criptat: {{ file.encrypted_name }}</div>
+                                            {% endif %}
+                                            {% if file.decrypted_name %}
+                                                <div class="small-muted">Decriptat: {{ file.decrypted_name }}</div>
+                                            {% endif %}
+                                        </td>
                                         <td>{{ file.status }}</td>
-                                        <td>{{ file.hash_value[:24] ~ '...' if file.hash_value and file.hash_value|length > 24 else (file.hash_value or '-') }}</td>
+                                        <td>{{ file.size_bytes if file.size_bytes is not none else '-' }}</td>
+                                        <td>{{ file.hash_value[:16] ~ '...' if file.hash_value and file.hash_value|length > 16 else (file.hash_value or '-') }}</td>
+                                        <td>{{ file.encrypted_hash[:16] ~ '...' if file.encrypted_hash and file.encrypted_hash|length > 16 else (file.encrypted_hash or '-') }}</td>
+                                        <td>{{ file.decrypted_hash[:16] ~ '...' if file.decrypted_hash and file.decrypted_hash|length > 16 else (file.decrypted_hash or '-') }}</td>
                                         <td class="text-end">
-                                            <a href="{{ url_for('show_files', edit_file=file.id) }}" class="btn btn-warning btn-sm btn-action">Editează</a>
+                                            {% if file.original_path %}
+                                                <a href="{{ url_for('download_file', file_id=file.id, kind='original') }}" class="btn btn-outline-primary btn-sm btn-action">Original</a>
+                                            {% endif %}
+                                            {% if file.encrypted_path %}
+                                                <a href="{{ url_for('download_file', file_id=file.id, kind='encrypted') }}" class="btn btn-outline-primary btn-sm btn-action">Criptat</a>
+                                            {% endif %}
+                                            {% if file.decrypted_path %}
+                                                <a href="{{ url_for('download_file', file_id=file.id, kind='decrypted') }}" class="btn btn-outline-primary btn-sm btn-action">Decriptat</a>
+                                            {% endif %}
                                             <a href="{{ url_for('delete_file', file_id=file.id) }}" class="btn btn-danger btn-sm btn-action"
-                                               onclick="return confirm('Sigur vrei să ștergi acest fișier?')">Șterge</a>
+                                               onclick="return confirm('Sigur vrei să ștergi acest fișier din baza de date?')">Șterge</a>
                                         </td>
                                     </tr>
                                 {% else %}
                                     <tr>
-                                        <td colspan="6" class="text-center text-muted py-4">Nu există fișiere în baza de date.</td>
+                                        <td colspan="8" class="text-center text-muted py-4">Nu există fișiere în baza de date.</td>
                                     </tr>
                                 {% endfor %}
                                 </tbody>
                             </table>
                         </div>
+                        <div class="small-muted mt-3">Statusul și hash-urile se actualizează automat după criptare/decriptare.</div>
                     </div>
                 </div>
             </div>

@@ -8,112 +8,55 @@
         </div>
     </div>
     <div class="card-body p-4">
-        <p class="section-subtitle mb-4">Gestionarea rezultatelor de performanță din sistem.</p>
-        <div class="row g-4">
-            <div class="col-lg-4">
-                <div class="card form-card h-100">
-                    <div class="card-header">
-                        Adaugă performanță
-                    </div>
-                    <div class="card-body">
-                        {% if files and algorithms and frameworks %}
-                        <form action="{{ url_for('save_performance') }}" method="post">
-                            <div class="mb-3">
-                                <label class="form-label">Fișier</label>
-                                <select name="file_id" class="form-select" required>
-                                    {% for file in files %}
-                                        <option value="{{ file.id }}">
-                                            {{ file.original_name }}
-                                        </option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Algoritm</label>
-                                <select name="algorithm_id" class="form-select" required>
-                                    {% for algo in algorithms %}
-                                        <option value="{{ algo.id }}">
-                                            {{ algo.name }}
-                                        </option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Framework</label>
-                                <select name="framework_id" class="form-select" required>
-                                    {% for framework in frameworks %}
-                                        <option value="{{ framework.id }}">
-                                            {{ framework.name }}
-                                        </option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Operație</label>
-                                <input type="text" name="operation" class="form-control" required>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Timp (ms)</label>
-                                <input type="number" step="0.01" name="time_taken_ms" class="form-control">
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Memorie (KB)</label>
-                                <input type="number" step="0.01" name="memory_used_kb" class="form-control">
-                            </div>
-                            <button type="submit" class="btn btn-success w-100">
-                                Adaugă
-                            </button>
-                        </form>
-                        {% else %}
-                            <div class="alert alert-warning mb-0">Pentru această secțiune ai nevoie de cel puțin un fișier, un algoritm și un framework.</div>
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
+        <p class="section-subtitle mb-4">Rezultatele de performanță sunt create automat după operațiile de criptare și decriptare.</p>
 
-            <div class="col-lg-8">
-                <div class="card table-card h-100">
-                    <div class="card-header">Lista performanțe</div>
-                    <div class="card-body">
-                        <div class="table-responsive">
-                            <table class="table table-hover align-middle">
-                                <thead>
-                                    <tr>
-                                        <th>ID</th>
-                                        <th>Fișier</th>
-                                        <th>Algoritm</th>
-                                        <th>Framework</th>
-                                        <th>Operație</th>
-                                        <th>Timp (ms)</th>
-                                        <th>Memorie (KB)</th>
-                                        <th class="text-end">Acțiune</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                {% for perf in performances %}
-                                    <tr>
-                                        <td>{{ perf.id }}</td>
-                                        <td>{{ perf.file.original_name }}</td>
-                                        <td>{{ perf.algorithm.name }}</td>
-                                        <td>{{ perf.framework.name }}</td>
-                                        <td>{{ perf.operation }}</td>
-                                        <td>{{ perf.time_taken_ms if perf.time_taken_ms is not none else '-' }}</td>
-                                        <td>{{ perf.memory_used_kb if perf.memory_used_kb is not none else '-' }}</td>
-                                        <td class="text-end">
-                                            <a href="{{ url_for('delete_performance', performance_id=perf.id) }}" class="btn btn-danger btn-sm btn-action"
-                                               onclick="return confirm('Sigur vrei să ștergi această înregistrare?')">Șterge</a>
-                                        </td>
-                                    </tr>
-                                {% else %}
-                                    <tr>
-                                        <td colspan="8" class="text-center text-muted py-4">Nu există înregistrări de performanță în baza de date.</td>
-                                    </tr>
-                                {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
+        <div class="card table-card">
+            <div class="card-header">Lista performanțe</div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Fișier</th>
+                                <th>Algoritm</th>
+                                <th>Framework</th>
+                                <th>Cheie</th>
+                                <th>Operație</th>
+                                <th>Timp</th>
+                                <th>Memorie</th>
+                                <th>Dimensiune rezultat</th>
+                                <th>Hash rezultat</th>
+                                <th class="text-end">Acțiune</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {% for perf in performances %}
+                            <tr>
+                                <td>{{ perf.id }}</td>
+                                <td>{{ perf.file.original_name }}</td>
+                                <td>{{ perf.algorithm.name }}</td>
+                                <td>{{ perf.framework.name }}</td>
+                                <td>{{ perf.key_id if perf.key_id else '-' }}</td>
+                                <td>{{ perf.operation }}</td>
+                                <td>{{ perf.time_taken_ms if perf.time_taken_ms is not none else '-' }} ms</td>
+                                <td>{{ perf.memory_used_kb if perf.memory_used_kb is not none else '-' }} KB</td>
+                                <td>{{ perf.file_size_bytes if perf.file_size_bytes is not none else '-' }} bytes</td>
+                                <td>{{ perf.result_hash[:20] ~ '...' if perf.result_hash and perf.result_hash|length > 20 else (perf.result_hash or '-') }}</td>
+                                <td class="text-end">
+                                    <a href="{{ url_for('delete_performance', performance_id=perf.id) }}" class="btn btn-danger btn-sm btn-action"
+                                       onclick="return confirm('Sigur vrei să ștergi această înregistrare?')">Șterge</a>
+                                </td>
+                            </tr>
+                        {% else %}
+                            <tr>
+                                <td colspan="11" class="text-center text-muted py-4">Nu există înregistrări de performanță în baza de date.</td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
                 </div>
+                <div class="small-muted mt-3">Performanțele nu se editează manual, deoarece sunt rezultate măsurate automat.</div>
             </div>
         </div>
     </div>

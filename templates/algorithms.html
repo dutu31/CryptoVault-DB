@@ -67,7 +67,7 @@
                                         <td class="text-end">
                                             <a href="{{ url_for('show_algorithms', edit_algorithm=algo.id) }}" class="btn btn-warning btn-sm btn-action">Editează</a>
                                             <a href="{{ url_for('delete_algorithm', algo_id=algo.id) }}" class="btn btn-danger btn-sm btn-action"
-                                               onclick="return confirm('Sigur vrei să ștergi acest algoritm?')">Șterge</a>
+                                               onclick="return confirm('Sigur vrei să ștergi acest algoritm? Vor fi șterse și cheile/performanțele asociate.')">Șterge</a>
                                         </td>
                                     </tr>
                                 {% else %}
