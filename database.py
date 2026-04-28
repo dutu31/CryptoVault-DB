@@ -31,10 +31,42 @@ def get_session():
     return SessionLocal()
 
 
+def get_columns(table_name):
+    with engine.connect() as connection:
+        rows = connection.exec_driver_sql(f"PRAGMA table_info({table_name})").fetchall()
+        return {row[1] for row in rows}
+
+
+def add_column_if_missing(table_name, column_name, definition):
+    columns = get_columns(table_name)
+    if column_name not in columns:
+        with engine.begin() as connection:
+            connection.exec_driver_sql(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {definition}")
+
+
+def migrate_database():
+    add_column_if_missing("files", "stored_name", "VARCHAR(255)")
+    add_column_if_missing("files", "original_path", "VARCHAR(500)")
+    add_column_if_missing("files", "encrypted_path", "VARCHAR(500)")
+    add_column_if_missing("files", "decrypted_name", "VARCHAR(255)")
+    add_column_if_missing("files", "decrypted_path", "VARCHAR(500)")
+    add_column_if_missing("files", "encrypted_hash", "VARCHAR(256)")
+    add_column_if_missing("files", "decrypted_hash", "VARCHAR(256)")
+    add_column_if_missing("files", "size_bytes", "INTEGER")
+    add_column_if_missing("files", "created_at", "DATETIME")
+    add_column_if_missing("files", "updated_at", "DATETIME")
+
+    add_column_if_missing("performances", "key_id", "INTEGER REFERENCES keys(id) ON DELETE SET NULL")
+    add_column_if_missing("performances", "file_size_bytes", "INTEGER")
+    add_column_if_missing("performances", "result_hash", "VARCHAR(256)")
+    add_column_if_missing("performances", "created_at", "DATETIME")
+
+
 def initialize_database():
     import models
 
     Base.metadata.create_all(bind=engine)
+    migrate_database()
     seed_reference_data()
 
 

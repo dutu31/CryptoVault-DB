@@ -21,7 +21,6 @@ def main():
     performance_id = None
 
     try:
-        # -------------------- ALGORITHM --------------------
         algorithm = crud.create_algorithm(db, f"TEST-ALG-{suffix}", "Simetric")
         algorithm_id = algorithm.id
         assert algorithm.id is not None
@@ -37,7 +36,6 @@ def main():
         assert updated_algorithm.type == "Asimetric"
         print_ok("UPDATE algorithm")
 
-        # -------------------- FRAMEWORK --------------------
         framework = crud.create_framework(db, f"TEST-FRAMEWORK-{suffix}")
         framework_id = framework.id
         assert framework.id is not None
@@ -52,36 +50,6 @@ def main():
         assert updated_framework.name == f"TEST-FRAMEWORK-UPD-{suffix}"
         print_ok("UPDATE framework")
 
-        # -------------------- FILE --------------------
-        file = crud.create_file(
-            db,
-            original_name=f"test_file_{suffix}.txt",
-            encrypted_name=None,
-            status="Ne-criptat",
-            hash_value="abc123"
-        )
-        file_id = file.id
-        assert file.id is not None
-        print_ok("CREATE file")
-
-        files = crud.get_all_files(db)
-        assert any(f.id == file_id for f in files)
-        print_ok("READ files")
-
-        updated_file = crud.update_file(
-            db,
-            file_id,
-            original_name=f"test_file_{suffix}.txt",
-            encrypted_name=f"test_file_{suffix}.enc",
-            status="Criptat",
-            hash_value="def456"
-        )
-        assert updated_file is not None
-        assert updated_file.status == "Criptat"
-        assert updated_file.encrypted_name == f"test_file_{suffix}.enc"
-        print_ok("UPDATE file")
-
-        # -------------------- KEY --------------------
         key = crud.create_key(db, algorithm_id, f"TEST-KEY-VALUE-{suffix}")
         key_id = key.id
         assert key.id is not None
@@ -91,15 +59,58 @@ def main():
         assert any(k.id == key_id for k in keys)
         print_ok("READ keys")
 
-        # -------------------- PERFORMANCE --------------------
+        file = crud.create_file(
+            db,
+            original_name=f"test_file_{suffix}.txt",
+            stored_name=f"stored_{suffix}.txt",
+            original_path=f"data/original/stored_{suffix}.txt",
+            status="Ne-criptat",
+            hash_value="abc123",
+            size_bytes=100
+        )
+        file_id = file.id
+        assert file.id is not None
+        print_ok("CREATE file")
+
+        files = crud.get_all_files(db)
+        assert any(f.id == file_id for f in files)
+        print_ok("READ files")
+
+        encrypted_file = crud.update_file_after_encrypt(
+            db,
+            file_id,
+            encrypted_name=f"test_file_{suffix}.enc",
+            encrypted_path=f"data/encrypted/test_file_{suffix}.enc",
+            encrypted_hash="def456"
+        )
+        assert encrypted_file is not None
+        assert encrypted_file.status == "Criptat"
+        assert encrypted_file.encrypted_hash == "def456"
+        print_ok("UPDATE file after encrypt")
+
+        decrypted_file = crud.update_file_after_decrypt(
+            db,
+            file_id,
+            decrypted_name=f"test_file_{suffix}.dec",
+            decrypted_path=f"data/decrypted/test_file_{suffix}.dec",
+            decrypted_hash="ghi789"
+        )
+        assert decrypted_file is not None
+        assert decrypted_file.status == "Decriptat"
+        assert decrypted_file.decrypted_hash == "ghi789"
+        print_ok("UPDATE file after decrypt")
+
         performance = crud.create_performance(
             db,
             file_id=file_id,
             algorithm_id=algorithm_id,
             framework_id=framework_id,
-            operation="encrypt",
+            key_id=key_id,
+            operation="Criptare",
             time_taken_ms=12.5,
-            memory_used_kb=256.0
+            memory_used_kb=256.0,
+            file_size_bytes=128,
+            result_hash="hash123"
         )
         performance_id = performance.id
         assert performance.id is not None
@@ -109,7 +120,6 @@ def main():
         assert any(p.id == performance_id for p in performances)
         print_ok("READ performances")
 
-        # -------------------- DELETE --------------------
         assert crud.delete_performance(db, performance_id) is True
         performance_id = None
         print_ok("DELETE performance")
@@ -130,7 +140,7 @@ def main():
         algorithm_id = None
         print_ok("DELETE algorithm")
 
-        print("\nToate testele pentru milestone 1 au trecut cu succes.")
+        print("\nToate testele pentru baza proiectului au trecut cu succes.")
 
     finally:
         db.close()

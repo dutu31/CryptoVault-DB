@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card section-card">
+    <div class="card-header">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <span>Framework-uri</span>
+        </div>
+    </div>
+    <div class="card-body p-4">
+        <p class="section-subtitle mb-4">Gestionarea framework-urilor și a instrumentelor utilizate.</p>
+        <div class="row g-4">
+            <div class="col-lg-4">
+                <div class="card form-card h-100">
+                    <div class="card-header">
+                        {{ "Editează framework" if edit_framework else "Adaugă framework" }}
+                    </div>
+                    <div class="card-body">
+                        <form action="{{ url_for('save_framework') }}" method="post">
+                            {% if edit_framework %}
+                                <input type="hidden" name="framework_id" value="{{ edit_framework.id }}">
+                            {% endif %}
+                            <div class="mb-3">
+                                <label class="form-label">Nume framework</label>
+                                <input type="text" name="name" class="form-control"
+                                       value="{{ edit_framework.name if edit_framework else '' }}" required>
+                            </div>
+                            <button type="submit" class="btn btn-success w-100">
+                                {{ "Actualizează" if edit_framework else "Adaugă" }}
+                            </button>
+                            {% if edit_framework %}
+                                <a href="{{ url_for('show_frameworks') }}" class="btn btn-secondary w-100 mt-2">Anulează</a>
+                            {% endif %}
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-8">
+                <div class="card table-card h-100">
+                    <div class="card-header">Lista framework-uri</div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Nume</th>
+                                        <th class="text-end">Acțiuni</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                {% for framework in frameworks %}
+                                    <tr>
+                                        <td>{{ framework.id }}</td>
+                                        <td><strong>{{ framework.name }}</strong></td>
+                                        <td class="text-end">
+                                            <a href="{{ url_for('show_frameworks', edit_framework=framework.id) }}" class="btn btn-warning btn-sm btn-action">Editează</a>
+                                            <a href="{{ url_for('delete_framework', framework_id=framework.id) }}" class="btn btn-danger btn-sm btn-action"
+                                               onclick="return confirm('Sigur vrei să ștergi acest framework? Vor fi șterse și performanțele asociate.')">Șterge</a>
+                                        </td>
+                                    </tr>
+                                {% else %}
+                                    <tr>
+                                        <td colspan="3" class="text-center text-muted py-4">Nu există framework-uri în baza de date.</td>
+                                    </tr>
+                                {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
