@@ -3,8 +3,6 @@ from sqlalchemy import func
 import models
 
 
-# -------------------- ALGORITHMS --------------------
-
 def create_algorithm(db: Session, name: str, algo_type: str):
     new_algo = models.Algorithm(name=name, type=algo_type)
     db.add(new_algo)
@@ -19,6 +17,7 @@ def get_all_algorithms(db: Session):
 
 def get_algorithm_by_id(db: Session, algo_id: int):
     return db.query(models.Algorithm).filter(models.Algorithm.id == algo_id).first()
+
 
 def get_algorithm_by_name(db: Session, name: str):
     return (
@@ -47,8 +46,6 @@ def delete_algorithm(db: Session, algo_id: int):
     return False
 
 
-# -------------------- KEYS --------------------
-
 def create_key(db: Session, algorithm_id: int, key_value: str):
     new_key = models.Key(algorithm_id=algorithm_id, key_value=key_value)
     db.add(new_key)
@@ -64,6 +61,7 @@ def get_all_keys(db: Session):
 def get_key_by_id(db: Session, key_id: int):
     return db.query(models.Key).filter(models.Key.id == key_id).first()
 
+
 def get_key_by_algorithm_and_value(db: Session, algorithm_id: int, key_value: str):
     return (
         db.query(models.Key)
@@ -74,6 +72,7 @@ def get_key_by_algorithm_and_value(db: Session, algorithm_id: int, key_value: st
         .first()
     )
 
+
 def delete_key(db: Session, key_id: int):
     db_key = get_key_by_id(db, key_id)
     if db_key:
@@ -82,8 +81,6 @@ def delete_key(db: Session, key_id: int):
         return True
     return False
 
-
-# -------------------- FRAMEWORKS --------------------
 
 def create_framework(db: Session, name: str):
     new_framework = models.Framework(name=name)
@@ -99,6 +96,7 @@ def get_all_frameworks(db: Session):
 
 def get_framework_by_id(db: Session, framework_id: int):
     return db.query(models.Framework).filter(models.Framework.id == framework_id).first()
+
 
 def get_framework_by_name(db: Session, name: str):
     return (
@@ -126,14 +124,22 @@ def delete_framework(db: Session, framework_id: int):
     return False
 
 
-# -------------------- FILES --------------------
-
-def create_file(db: Session, original_name: str, encrypted_name: str = None, status: str = "Ne-criptat", hash_value: str = None):
+def create_file(
+    db: Session,
+    original_name: str,
+    stored_name: str = None,
+    original_path: str = None,
+    status: str = "Ne-criptat",
+    hash_value: str = None,
+    size_bytes: int = None
+):
     new_file = models.File(
         original_name=original_name,
-        encrypted_name=encrypted_name,
+        stored_name=stored_name,
+        original_path=original_path,
         status=status,
         hash_value=hash_value,
+        size_bytes=size_bytes,
     )
     db.add(new_file)
     db.commit()
@@ -142,11 +148,12 @@ def create_file(db: Session, original_name: str, encrypted_name: str = None, sta
 
 
 def get_all_files(db: Session):
-    return db.query(models.File).order_by(models.File.id).all()
+    return db.query(models.File).order_by(models.File.id.desc()).all()
 
 
 def get_file_by_id(db: Session, file_id: int):
     return db.query(models.File).filter(models.File.id == file_id).first()
+
 
 def get_file_by_original_name(db: Session, original_name: str):
     return (
@@ -156,13 +163,37 @@ def get_file_by_original_name(db: Session, original_name: str):
     )
 
 
-def update_file(db: Session, file_id: int, original_name: str, encrypted_name: str = None, status: str = "Ne-criptat", hash_value: str = None):
+def update_file_after_encrypt(
+    db: Session,
+    file_id: int,
+    encrypted_name: str,
+    encrypted_path: str,
+    encrypted_hash: str
+):
     db_file = get_file_by_id(db, file_id)
     if db_file:
-        db_file.original_name = original_name
         db_file.encrypted_name = encrypted_name
-        db_file.status = status
-        db_file.hash_value = hash_value
+        db_file.encrypted_path = encrypted_path
+        db_file.encrypted_hash = encrypted_hash
+        db_file.status = "Criptat"
+        db.commit()
+        db.refresh(db_file)
+    return db_file
+
+
+def update_file_after_decrypt(
+    db: Session,
+    file_id: int,
+    decrypted_name: str,
+    decrypted_path: str,
+    decrypted_hash: str
+):
+    db_file = get_file_by_id(db, file_id)
+    if db_file:
+        db_file.decrypted_name = decrypted_name
+        db_file.decrypted_path = decrypted_path
+        db_file.decrypted_hash = decrypted_hash
+        db_file.status = "Decriptat"
         db.commit()
         db.refresh(db_file)
     return db_file
@@ -177,16 +208,28 @@ def delete_file(db: Session, file_id: int):
     return False
 
 
-# -------------------- PERFORMANCES --------------------
-
-def create_performance(db: Session, file_id: int, algorithm_id: int, framework_id: int, operation: str, time_taken_ms: float = None, memory_used_kb: float = None):
+def create_performance(
+    db: Session,
+    file_id: int,
+    algorithm_id: int,
+    framework_id: int,
+    operation: str,
+    time_taken_ms: float = None,
+    memory_used_kb: float = None,
+    key_id: int = None,
+    file_size_bytes: int = None,
+    result_hash: str = None
+):
     new_performance = models.Performance(
         file_id=file_id,
         algorithm_id=algorithm_id,
         framework_id=framework_id,
+        key_id=key_id,
         operation=operation,
         time_taken_ms=time_taken_ms,
         memory_used_kb=memory_used_kb,
+        file_size_bytes=file_size_bytes,
+        result_hash=result_hash,
     )
     db.add(new_performance)
     db.commit()
@@ -195,11 +238,12 @@ def create_performance(db: Session, file_id: int, algorithm_id: int, framework_i
 
 
 def get_all_performances(db: Session):
-    return db.query(models.Performance).order_by(models.Performance.id).all()
+    return db.query(models.Performance).order_by(models.Performance.id.desc()).all()
 
 
 def get_performance_by_id(db: Session, performance_id: int):
     return db.query(models.Performance).filter(models.Performance.id == performance_id).first()
+
 
 def delete_performance(db: Session, performance_id: int):
     db_performance = get_performance_by_id(db, performance_id)
