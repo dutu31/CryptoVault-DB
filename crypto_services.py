@@ -114,42 +114,28 @@ def aes_key_bytes(key_value):
     return hashlib.sha256(key_value.encode("utf-8")).digest()
 
 
-def pkcs7_pad(data):
-    pad_len = 16 - (len(data) % 16)
-    return data + bytes([pad_len]) * pad_len
-
-
-def pkcs7_unpad(data):
-    if not data:
-        raise RuntimeError("Datele de decriptat sunt goale.")
-
-    pad_len = data[-1]
-
-    if pad_len < 1 or pad_len > 16:
-        raise RuntimeError("Padding invalid la decriptare.")
-
-    if data[-pad_len:] != bytes([pad_len]) * pad_len:
-        raise RuntimeError("Padding invalid la decriptare.")
-
-    return data[:-pad_len]
-
-
-def aes_pycryptodome_encrypt(input_path, output_path, key_value):
-    from Crypto.Cipher import AES
-    from Crypto.Random import get_random_bytes
+def aes_cryptography_encrypt(input_path, output_path, key_value):
+    from cryptography.hazmat.primitives import padding as symmetric_padding
+    from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
     key = aes_key_bytes(key_value)
-    iv = get_random_bytes(16)
+    iv = secrets.token_bytes(16)
 
     data = Path(input_path).read_bytes()
-    cipher = AES.new(key, AES.MODE_CBC, iv)
-    encrypted = cipher.encrypt(pkcs7_pad(data))
+
+    padder = symmetric_padding.PKCS7(128).padder()
+    padded_data = padder.update(data) + padder.finalize()
+
+    cipher = Cipher(algorithms.AES(key), modes.CBC(iv))
+    encryptor = cipher.encryptor()
+    encrypted = encryptor.update(padded_data) + encryptor.finalize()
 
     Path(output_path).write_bytes(iv + encrypted)
 
 
-def aes_pycryptodome_decrypt(input_path, output_path, key_value):
-    from Crypto.Cipher import AES
+def aes_cryptography_decrypt(input_path, output_path, key_value):
+    from cryptography.hazmat.primitives import padding as symmetric_padding
+    from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
     key = aes_key_bytes(key_value)
     data = Path(input_path).read_bytes()
@@ -160,8 +146,12 @@ def aes_pycryptodome_decrypt(input_path, output_path, key_value):
     iv = data[:16]
     encrypted = data[16:]
 
-    cipher = AES.new(key, AES.MODE_CBC, iv)
-    decrypted = pkcs7_unpad(cipher.decrypt(encrypted))
+    cipher = Cipher(algorithms.AES(key), modes.CBC(iv))
+    decryptor = cipher.decryptor()
+    padded_decrypted = decryptor.update(encrypted) + decryptor.finalize()
+
+    unpadder = symmetric_padding.PKCS7(128).unpadder()
+    decrypted = unpadder.update(padded_decrypted) + unpadder.finalize()
 
     Path(output_path).write_bytes(decrypted)
 
@@ -257,42 +247,71 @@ def rsa_openssl_decrypt(input_path, output_path, key_value):
         ])
 
 
-def rsa_pycryptodome_encrypt(input_path, output_path, key_value):
-    from Crypto.Cipher import PKCS1_OAEP
-    from Crypto.PublicKey import RSA
+def rsa_cryptography_encrypt(input_path, output_path, key_value):
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import padding as asymmetric_padding
 
     key_data = load_rsa_key_data(key_value)
-    public_key = RSA.import_key(key_data["public_key"].encode("utf-8"))
-    cipher = PKCS1_OAEP.new(public_key)
+
+    public_key = serialization.load_pem_public_key(
+        key_data["public_key"].encode("utf-8")
+    )
 
     data = Path(input_path).read_bytes()
-    max_size = public_key.size_in_bytes() - 42
+
+    hash_algorithm = hashes.SHA256()
+    max_size = public_key.key_size // 8 - 2 * hash_algorithm.digest_size - 2
 
     if len(data) > max_size:
         raise RuntimeError(f"Pentru RSA direct, fișierul trebuie să aibă cel mult {max_size} bytes.")
 
-    encrypted = cipher.encrypt(data)
+    encrypted = public_key.encrypt(
+        data,
+        asymmetric_padding.OAEP(
+            mgf=asymmetric_padding.MGF1(algorithm=hash_algorithm),
+            algorithm=hash_algorithm,
+            label=None
+        )
+    )
+
     Path(output_path).write_bytes(encrypted)
 
 
-def rsa_pycryptodome_decrypt(input_path, output_path, key_value):
-    from Crypto.Cipher import PKCS1_OAEP
-    from Crypto.PublicKey import RSA
+def rsa_cryptography_decrypt(input_path, output_path, key_value):
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import padding as asymmetric_padding
 
     key_data = load_rsa_key_data(key_value)
-    private_key = RSA.import_key(key_data["private_key"].encode("utf-8"))
-    cipher = PKCS1_OAEP.new(private_key)
+
+    private_key = serialization.load_pem_private_key(
+        key_data["private_key"].encode("utf-8"),
+        password=None
+    )
 
     data = Path(input_path).read_bytes()
-    decrypted = cipher.decrypt(data)
+
+    hash_algorithm = hashes.SHA256()
+
+    decrypted = private_key.decrypt(
+        data,
+        asymmetric_padding.OAEP(
+            mgf=asymmetric_padding.MGF1(algorithm=hash_algorithm),
+            algorithm=hash_algorithm,
+            label=None
+        )
+    )
 
     Path(output_path).write_bytes(decrypted)
 
 
+def is_cryptography_framework(framework_name):
+    return framework_name in ["cryptography", "cryptography api"]
+
+
 def run_crypto_operation(algorithm_name, framework_name, operation, input_path, output_path, key_value):
-    algorithm_name = algorithm_name.lower()
-    framework_name = framework_name.lower()
-    operation = operation.lower()
+    algorithm_name = algorithm_name.strip().lower()
+    framework_name = framework_name.strip().lower()
+    operation = operation.strip().lower()
 
     def action():
         if "aes" in algorithm_name and framework_name == "openssl" and operation == "encrypt":
@@ -303,12 +322,12 @@ def run_crypto_operation(algorithm_name, framework_name, operation, input_path, 
             aes_openssl_decrypt(input_path, output_path, key_value)
             return
 
-        if "aes" in algorithm_name and framework_name == "pycryptodome" and operation == "encrypt":
-            aes_pycryptodome_encrypt(input_path, output_path, key_value)
+        if "aes" in algorithm_name and is_cryptography_framework(framework_name) and operation == "encrypt":
+            aes_cryptography_encrypt(input_path, output_path, key_value)
             return
 
-        if "aes" in algorithm_name and framework_name == "pycryptodome" and operation == "decrypt":
-            aes_pycryptodome_decrypt(input_path, output_path, key_value)
+        if "aes" in algorithm_name and is_cryptography_framework(framework_name) and operation == "decrypt":
+            aes_cryptography_decrypt(input_path, output_path, key_value)
             return
 
         if "rsa" in algorithm_name and framework_name == "openssl" and operation == "encrypt":
@@ -319,12 +338,12 @@ def run_crypto_operation(algorithm_name, framework_name, operation, input_path, 
             rsa_openssl_decrypt(input_path, output_path, key_value)
             return
 
-        if "rsa" in algorithm_name and framework_name == "pycryptodome" and operation == "encrypt":
-            rsa_pycryptodome_encrypt(input_path, output_path, key_value)
+        if "rsa" in algorithm_name and is_cryptography_framework(framework_name) and operation == "encrypt":
+            rsa_cryptography_encrypt(input_path, output_path, key_value)
             return
 
-        if "rsa" in algorithm_name and framework_name == "pycryptodome" and operation == "decrypt":
-            rsa_pycryptodome_decrypt(input_path, output_path, key_value)
+        if "rsa" in algorithm_name and is_cryptography_framework(framework_name) and operation == "decrypt":
+            rsa_cryptography_decrypt(input_path, output_path, key_value)
             return
 
         raise RuntimeError("Combinația algoritm/framework/operație nu este suportată.")

@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, func
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 DATABASE_URL = "sqlite:///crypto_vault.db"
@@ -62,6 +62,14 @@ def migrate_database():
     add_column_if_missing("performances", "created_at", "DATETIME")
 
 
+def get_framework_case_insensitive(db, models, name):
+    return (
+        db.query(models.Framework)
+        .filter(func.lower(models.Framework.name) == name.lower())
+        .first()
+    )
+
+
 def initialize_database():
     import models
 
@@ -80,20 +88,40 @@ def seed_reference_data():
             ("RSA", "Asimetric"),
         ]
 
-        default_frameworks = [
-            "OpenSSL",
-            "PyCryptodome",
-        ]
-
         for name, algo_type in default_algorithms:
-            existing = db.query(models.Algorithm).filter(models.Algorithm.name == name).first()
+            existing = (
+                db.query(models.Algorithm)
+                .filter(func.lower(models.Algorithm.name) == name.lower())
+                .first()
+            )
             if existing is None:
                 db.add(models.Algorithm(name=name, type=algo_type))
 
-        for name in default_frameworks:
-            existing = db.query(models.Framework).filter(models.Framework.name == name).first()
-            if existing is None:
-                db.add(models.Framework(name=name))
+        openssl_framework = get_framework_case_insensitive(db, models, "OpenSSL")
+        if openssl_framework is None:
+            db.add(models.Framework(name="OpenSSL"))
+
+        cryptography_framework = get_framework_case_insensitive(db, models, "Cryptography API")
+        pycryptodome_framework = get_framework_case_insensitive(db, models, "PyCryptodome")
+
+        if pycryptodome_framework is not None and cryptography_framework is None:
+            pycryptodome_framework.name = "Cryptography API"
+            cryptography_framework = pycryptodome_framework
+
+        elif pycryptodome_framework is not None and cryptography_framework is not None:
+            db.query(models.Performance).filter(
+                models.Performance.framework_id == pycryptodome_framework.id
+            ).update(
+                {"framework_id": cryptography_framework.id},
+                synchronize_session=False
+            )
+            db.delete(pycryptodome_framework)
+
+        cryptography_framework = get_framework_case_insensitive(db, models, "Cryptography API")
+        if cryptography_framework is None:
+            db.add(models.Framework(name="Cryptography API"))
+        else:
+            cryptography_framework.name = "Cryptography API"
 
         db.commit()
     finally:
