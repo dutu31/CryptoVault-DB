@@ -5,10 +5,73 @@
     <div class="card-header">
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
             <span>Performanțe</span>
+            <span class="badge bg-light text-dark">{{ pagination.total }} înregistrări</span>
         </div>
     </div>
     <div class="card-body p-4">
         <p class="section-subtitle mb-4">Rezultatele de performanță sunt create automat după operațiile de criptare și decriptare.</p>
+
+        <div class="row g-4 mb-4">
+            <div class="col-xl-6">
+                <div class="card table-card h-100">
+                    <div class="card-header">Grafic timp mediu</div>
+                    <div class="card-body">
+                        <canvas id="timeChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-xl-6">
+                <div class="card table-card h-100">
+                    <div class="card-header">Grafic memorie medie</div>
+                    <div class="card-body">
+                        <canvas id="memoryChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card table-card mb-4">
+            <div class="card-header">Rezumat performanțe</div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead>
+                            <tr>
+                                <th>Algoritm</th>
+                                <th>Framework</th>
+                                <th>Operație</th>
+                                <th>Înregistrări</th>
+                                <th>Total rulări</th>
+                                <th>Timp mediu</th>
+                                <th>Timp minim</th>
+                                <th>Timp maxim</th>
+                                <th>Memorie medie</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {% for row in summary %}
+                            <tr>
+                                <td>{{ row.algorithm_name }}</td>
+                                <td>{{ row.framework_name }}</td>
+                                <td>{{ row.operation }}</td>
+                                <td>{{ row.records_count }}</td>
+                                <td>{{ row.runs_total }}</td>
+                                <td>{{ row.avg_time_ms }} ms</td>
+                                <td>{{ row.min_time_ms }} ms</td>
+                                <td>{{ row.max_time_ms }} ms</td>
+                                <td>{{ row.avg_memory_kb }} KB</td>
+                            </tr>
+                        {% else %}
+                            <tr>
+                                <td colspan="9" class="text-center text-muted py-4">Nu există date pentru rezumat.</td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
 
         <div class="card table-card">
             <div class="card-header">Lista performanțe</div>
@@ -23,8 +86,10 @@
                                 <th>Framework</th>
                                 <th>Cheie</th>
                                 <th>Operație</th>
-                                <th>Timp</th>
-                                <th>Memorie</th>
+                                <th>Rulări</th>
+                                <th>Timp mediu</th>
+                                <th>Timp min/max</th>
+                                <th>Memorie medie</th>
                                 <th>Dimensiune rezultat</th>
                                 <th>Hash rezultat</th>
                                 <th class="text-end">Acțiune</th>
@@ -34,13 +99,20 @@
                         {% for perf in performances %}
                             <tr>
                                 <td>{{ perf.id }}</td>
-                                <td>{{ perf.file.original_name }}</td>
-                                <td>{{ perf.algorithm.name }}</td>
-                                <td>{{ perf.framework.name }}</td>
+                                <td>{{ perf.file.original_name if perf.file else '-' }}</td>
+                                <td>{{ perf.algorithm.name if perf.algorithm else '-' }}</td>
+                                <td>{{ perf.framework.name if perf.framework else '-' }}</td>
                                 <td>{{ perf.key_id if perf.key_id else '-' }}</td>
                                 <td>{{ perf.operation }}</td>
-                                <td>{{ perf.time_taken_ms if perf.time_taken_ms is not none else '-' }} ms</td>
-                                <td>{{ perf.memory_used_kb if perf.memory_used_kb is not none else '-' }} KB</td>
+                                <td>{{ perf.runs_count if perf.runs_count else 1 }}</td>
+                                <td>{{ perf.avg_time_ms if perf.avg_time_ms is not none else (perf.time_taken_ms if perf.time_taken_ms is not none else '-') }} ms</td>
+                                <td>
+                                    {{ perf.min_time_ms if perf.min_time_ms is not none else (perf.time_taken_ms if perf.time_taken_ms is not none else '-') }}
+                                    /
+                                    {{ perf.max_time_ms if perf.max_time_ms is not none else (perf.time_taken_ms if perf.time_taken_ms is not none else '-') }}
+                                    ms
+                                </td>
+                                <td>{{ perf.avg_memory_kb if perf.avg_memory_kb is not none else (perf.memory_used_kb if perf.memory_used_kb is not none else '-') }} KB</td>
                                 <td>{{ perf.file_size_bytes if perf.file_size_bytes is not none else '-' }} bytes</td>
                                 <td>{{ perf.result_hash[:20] ~ '...' if perf.result_hash and perf.result_hash|length > 20 else (perf.result_hash or '-') }}</td>
                                 <td class="text-end">
@@ -50,15 +122,71 @@
                             </tr>
                         {% else %}
                             <tr>
-                                <td colspan="11" class="text-center text-muted py-4">Nu există înregistrări de performanță în baza de date.</td>
+                                <td colspan="13" class="text-center text-muted py-4">Nu există înregistrări de performanță în baza de date.</td>
                             </tr>
                         {% endfor %}
                         </tbody>
                     </table>
                 </div>
+
+                {% include "_pagination.html" %}
+
                 <div class="small-muted mt-3">Performanțele nu se editează manual, deoarece sunt rezultate măsurate automat.</div>
             </div>
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+const chartLabels = {{ chart_labels|tojson }};
+const chartTimes = {{ chart_times|tojson }};
+const chartMemory = {{ chart_memory|tojson }};
+
+const timeCanvas = document.getElementById("timeChart");
+if (timeCanvas) {
+    new Chart(timeCanvas, {
+        type: "bar",
+        data: {
+            labels: chartLabels,
+            datasets: [{
+                label: "Timp mediu (ms)",
+                data: chartTimes
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    display: true
+                }
+            }
+        }
+    });
+}
+
+const memoryCanvas = document.getElementById("memoryChart");
+if (memoryCanvas) {
+    new Chart(memoryCanvas, {
+        type: "bar",
+        data: {
+            labels: chartLabels,
+            datasets: [{
+                label: "Memorie medie (KB)",
+                data: chartMemory
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    display: true
+                }
+            }
+        }
+    });
+}
+</script>
 {% endblock %}

@@ -67,9 +67,21 @@ class Performance(Base):
     algorithm_id = Column(Integer, ForeignKey("algorithms.id", ondelete="CASCADE"), nullable=False)
     framework_id = Column(Integer, ForeignKey("frameworks.id", ondelete="CASCADE"), nullable=False)
     key_id = Column(Integer, ForeignKey("keys.id", ondelete="SET NULL"), nullable=True)
+
     operation = Column(String(50), nullable=False)
+
     time_taken_ms = Column(Float, nullable=True)
     memory_used_kb = Column(Float, nullable=True)
+
+    runs_count = Column(Integer, default=1, nullable=False)
+    avg_time_ms = Column(Float, nullable=True)
+    min_time_ms = Column(Float, nullable=True)
+    max_time_ms = Column(Float, nullable=True)
+
+    avg_memory_kb = Column(Float, nullable=True)
+    min_memory_kb = Column(Float, nullable=True)
+    max_memory_kb = Column(Float, nullable=True)
+
     file_size_bytes = Column(Integer, nullable=True)
     result_hash = Column(String(256), nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow, nullable=True)

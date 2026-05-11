@@ -1,6 +1,66 @@
-from sqlalchemy.orm import Session
+import math
+
 from sqlalchemy import func
+from sqlalchemy.orm import Session
+
 import models
+
+
+DEFAULT_PAGE = 1
+DEFAULT_PER_PAGE = 25
+MAX_PER_PAGE = 100
+
+
+def normalize_page(value):
+    try:
+        value = int(value)
+    except (TypeError, ValueError):
+        value = DEFAULT_PAGE
+
+    if value < 1:
+        value = DEFAULT_PAGE
+
+    return value
+
+
+def normalize_per_page(value):
+    try:
+        value = int(value)
+    except (TypeError, ValueError):
+        value = DEFAULT_PER_PAGE
+
+    if value < 1:
+        value = DEFAULT_PER_PAGE
+
+    if value > MAX_PER_PAGE:
+        value = MAX_PER_PAGE
+
+    return value
+
+
+def paginate_query(query, page=1, per_page=25):
+    page = normalize_page(page)
+    per_page = normalize_per_page(per_page)
+
+    total = query.count()
+    pages = math.ceil(total / per_page) if total > 0 else 1
+
+    if page > pages:
+        page = pages
+
+    items = query.offset((page - 1) * per_page).limit(per_page).all()
+
+    return {
+        "items": items,
+        "page": page,
+        "per_page": per_page,
+        "total": total,
+        "pages": pages,
+        "has_prev": page > 1,
+        "has_next": page < pages,
+        "prev_page": page - 1 if page > 1 else 1,
+        "next_page": page + 1 if page < pages else pages,
+    }
 
 
 def create_algorithm(db: Session, name: str, algo_type: str):
@@ -13,6 +73,15 @@ def create_algorithm(db: Session, name: str, algo_type: str):
 
 def get_all_algorithms(db: Session):
     return db.query(models.Algorithm).order_by(models.Algorithm.id).all()
+
+
+def get_algorithms_paginated(db: Session, page=1, per_page=25):
+    query = db.query(models.Algorithm).order_by(models.Algorithm.id)
+    return paginate_query(query, page, per_page)
+
+
+def count_algorithms(db: Session):
+    return db.query(models.Algorithm).count()
 
 
 def get_algorithm_by_id(db: Session, algo_id: int):
@@ -58,6 +127,15 @@ def get_all_keys(db: Session):
     return db.query(models.Key).order_by(models.Key.id).all()
 
 
+def get_keys_paginated(db: Session, page=1, per_page=25):
+    query = db.query(models.Key).order_by(models.Key.id.desc())
+    return paginate_query(query, page, per_page)
+
+
+def count_keys(db: Session):
+    return db.query(models.Key).count()
+
+
 def get_key_by_id(db: Session, key_id: int):
     return db.query(models.Key).filter(models.Key.id == key_id).first()
 
@@ -92,6 +170,15 @@ def create_framework(db: Session, name: str):
 
 def get_all_frameworks(db: Session):
     return db.query(models.Framework).order_by(models.Framework.id).all()
+
+
+def get_frameworks_paginated(db: Session, page=1, per_page=25):
+    query = db.query(models.Framework).order_by(models.Framework.id)
+    return paginate_query(query, page, per_page)
+
+
+def count_frameworks(db: Session):
+    return db.query(models.Framework).count()
 
 
 def get_framework_by_id(db: Session, framework_id: int):
@@ -149,6 +236,15 @@ def create_file(
 
 def get_all_files(db: Session):
     return db.query(models.File).order_by(models.File.id.desc()).all()
+
+
+def get_files_paginated(db: Session, page=1, per_page=25):
+    query = db.query(models.File).order_by(models.File.id.desc())
+    return paginate_query(query, page, per_page)
+
+
+def count_files(db: Session):
+    return db.query(models.File).count()
 
 
 def get_file_by_id(db: Session, file_id: int):
@@ -218,7 +314,14 @@ def create_performance(
     memory_used_kb: float = None,
     key_id: int = None,
     file_size_bytes: int = None,
-    result_hash: str = None
+    result_hash: str = None,
+    runs_count: int = 1,
+    avg_time_ms: float = None,
+    min_time_ms: float = None,
+    max_time_ms: float = None,
+    avg_memory_kb: float = None,
+    min_memory_kb: float = None,
+    max_memory_kb: float = None
 ):
     new_performance = models.Performance(
         file_id=file_id,
@@ -228,6 +331,13 @@ def create_performance(
         operation=operation,
         time_taken_ms=time_taken_ms,
         memory_used_kb=memory_used_kb,
+        runs_count=runs_count,
+        avg_time_ms=avg_time_ms if avg_time_ms is not None else time_taken_ms,
+        min_time_ms=min_time_ms if min_time_ms is not None else time_taken_ms,
+        max_time_ms=max_time_ms if max_time_ms is not None else time_taken_ms,
+        avg_memory_kb=avg_memory_kb if avg_memory_kb is not None else memory_used_kb,
+        min_memory_kb=min_memory_kb if min_memory_kb is not None else memory_used_kb,
+        max_memory_kb=max_memory_kb if max_memory_kb is not None else memory_used_kb,
         file_size_bytes=file_size_bytes,
         result_hash=result_hash,
     )
@@ -241,6 +351,15 @@ def get_all_performances(db: Session):
     return db.query(models.Performance).order_by(models.Performance.id.desc()).all()
 
 
+def get_performances_paginated(db: Session, page=1, per_page=25):
+    query = db.query(models.Performance).order_by(models.Performance.id.desc())
+    return paginate_query(query, page, per_page)
+
+
+def count_performances(db: Session):
+    return db.query(models.Performance).count()
+
+
 def get_performance_by_id(db: Session, performance_id: int):
     return db.query(models.Performance).filter(models.Performance.id == performance_id).first()
 
@@ -252,3 +371,49 @@ def delete_performance(db: Session, performance_id: int):
         db.commit()
         return True
     return False
+
+
+def get_performance_summary(db: Session):
+    rows = (
+        db.query(
+            models.Algorithm.name.label("algorithm_name"),
+            models.Framework.name.label("framework_name"),
+            models.Performance.operation.label("operation"),
+            func.count(models.Performance.id).label("records_count"),
+            func.sum(models.Performance.runs_count).label("runs_total"),
+            func.avg(models.Performance.avg_time_ms).label("avg_time_ms"),
+            func.min(models.Performance.min_time_ms).label("min_time_ms"),
+            func.max(models.Performance.max_time_ms).label("max_time_ms"),
+            func.avg(models.Performance.avg_memory_kb).label("avg_memory_kb"),
+        )
+        .join(models.Algorithm, models.Performance.algorithm_id == models.Algorithm.id)
+        .join(models.Framework, models.Performance.framework_id == models.Framework.id)
+        .group_by(
+            models.Algorithm.name,
+            models.Framework.name,
+            models.Performance.operation
+        )
+        .order_by(
+            models.Algorithm.name,
+            models.Framework.name,
+            models.Performance.operation
+        )
+        .all()
+    )
+
+    summary = []
+
+    for row in rows:
+        summary.append({
+            "algorithm_name": row.algorithm_name,
+            "framework_name": row.framework_name,
+            "operation": row.operation,
+            "records_count": row.records_count or 0,
+            "runs_total": row.runs_total or 0,
+            "avg_time_ms": round(row.avg_time_ms or 0, 3),
+            "min_time_ms": round(row.min_time_ms or 0, 3),
+            "max_time_ms": round(row.max_time_ms or 0, 3),
+            "avg_memory_kb": round(row.avg_memory_kb or 0, 3),
+        })
+
+    return summary

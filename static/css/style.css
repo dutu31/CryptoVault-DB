@@ -260,3 +260,17 @@ details summary {
     background-color: #f9fafb;
     resize: none;
 }
+
+.pagination .page-link {
+    color: #1e3a8a;
+}
+
+.pagination .page-item.active .page-link {
+    background-color: #1e3a8a;
+    border-color: #1e3a8a;
+    color: white;
+}
+
+canvas {
+    max-height: 360px;
+}

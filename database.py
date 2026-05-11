@@ -61,6 +61,37 @@ def migrate_database():
     add_column_if_missing("performances", "result_hash", "VARCHAR(256)")
     add_column_if_missing("performances", "created_at", "DATETIME")
 
+    add_column_if_missing("performances", "runs_count", "INTEGER DEFAULT 1")
+    add_column_if_missing("performances", "avg_time_ms", "FLOAT")
+    add_column_if_missing("performances", "min_time_ms", "FLOAT")
+    add_column_if_missing("performances", "max_time_ms", "FLOAT")
+    add_column_if_missing("performances", "avg_memory_kb", "FLOAT")
+    add_column_if_missing("performances", "min_memory_kb", "FLOAT")
+    add_column_if_missing("performances", "max_memory_kb", "FLOAT")
+
+    with engine.begin() as connection:
+        connection.exec_driver_sql(
+            "UPDATE performances SET runs_count = 1 WHERE runs_count IS NULL"
+        )
+        connection.exec_driver_sql(
+            "UPDATE performances SET avg_time_ms = time_taken_ms WHERE avg_time_ms IS NULL"
+        )
+        connection.exec_driver_sql(
+            "UPDATE performances SET min_time_ms = time_taken_ms WHERE min_time_ms IS NULL"
+        )
+        connection.exec_driver_sql(
+            "UPDATE performances SET max_time_ms = time_taken_ms WHERE max_time_ms IS NULL"
+        )
+        connection.exec_driver_sql(
+            "UPDATE performances SET avg_memory_kb = memory_used_kb WHERE avg_memory_kb IS NULL"
+        )
+        connection.exec_driver_sql(
+            "UPDATE performances SET min_memory_kb = memory_used_kb WHERE min_memory_kb IS NULL"
+        )
+        connection.exec_driver_sql(
+            "UPDATE performances SET max_memory_kb = memory_used_kb WHERE max_memory_kb IS NULL"
+        )
+
 
 def get_framework_case_insensitive(db, models, name):
     return (
@@ -106,7 +137,6 @@ def seed_reference_data():
 
         if pycryptodome_framework is not None and cryptography_framework is None:
             pycryptodome_framework.name = "Cryptography API"
-            cryptography_framework = pycryptodome_framework
 
         elif pycryptodome_framework is not None and cryptography_framework is not None:
             db.query(models.Performance).filter(

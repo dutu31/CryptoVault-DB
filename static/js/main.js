@@ -4,7 +4,7 @@ document.addEventListener("DOMContentLoaded", function() {
     if (alerts.length > 0) {
         setTimeout(function() {
             alerts.forEach(function(alert) {
-                const bsAlert = new bootstrap.Alert(alert);
+                const bsAlert = bootstrap.Alert.getOrCreateInstance(alert);
                 bsAlert.close();
             });
         }, 5000);
@@ -14,29 +14,27 @@ document.addEventListener("DOMContentLoaded", function() {
     const keySelect = document.getElementById("keySelect");
 
     if (algorithmSelect && keySelect) {
+        const originalOptions = Array.from(keySelect.options).map(function(option) {
+            return option.cloneNode(true);
+        });
+
         function filterKeys() {
             const selectedAlgorithmId = algorithmSelect.value;
-            let firstVisibleOption = null;
 
-            Array.from(keySelect.options).forEach(function(option) {
-                if (option.dataset.algorithmId === selectedAlgorithmId) {
-                    option.hidden = false;
-                    option.disabled = false;
+            keySelect.innerHTML = "";
 
-                    if (firstVisibleOption === null) {
-                        firstVisibleOption = option;
-                    }
-                } else {
-                    option.hidden = true;
-                    option.disabled = true;
+            const placeholder = document.createElement("option");
+            placeholder.value = "";
+            placeholder.textContent = selectedAlgorithmId ? "Selectează cheia" : "Selectează mai întâi algoritmul";
+            keySelect.appendChild(placeholder);
+
+            originalOptions.forEach(function(option) {
+                if (option.value && option.dataset.algorithmId === selectedAlgorithmId) {
+                    keySelect.appendChild(option.cloneNode(true));
                 }
             });
 
-            if (firstVisibleOption !== null) {
-                keySelect.value = firstVisibleOption.value;
-            } else {
-                keySelect.value = "";
-            }
+            keySelect.value = "";
         }
 
         algorithmSelect.addEventListener("change", filterKeys);

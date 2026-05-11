@@ -11,6 +11,14 @@ app = Flask(__name__)
 app.secret_key = "cheie_super_secreta_pentru_proiect"
 
 
+def get_page():
+    return crud.normalize_page(request.args.get("page", 1))
+
+
+def get_per_page():
+    return crud.normalize_per_page(request.args.get("per_page", 25))
+
+
 def load_key_json(key_value):
     try:
         key_data = json.loads(key_value)
@@ -87,11 +95,11 @@ def index():
     db = database.get_session()
     try:
         stats = {
-            "algorithms": len(crud.get_all_algorithms(db)),
-            "crypto_keys": len(crud.get_all_keys(db)),
-            "frameworks": len(crud.get_all_frameworks(db)),
-            "files": len(crud.get_all_files(db)),
-            "performances": len(crud.get_all_performances(db))
+            "algorithms": crud.count_algorithms(db),
+            "crypto_keys": crud.count_keys(db),
+            "frameworks": crud.count_frameworks(db),
+            "files": crud.count_files(db),
+            "performances": crud.count_performances(db)
         }
 
         return render_template("index.html", stats=stats)
@@ -104,10 +112,15 @@ def show_algorithms():
     db = database.get_session()
     try:
         edit_algorithm_id = request.args.get("edit_algorithm", type=int)
-        algorithms = crud.get_all_algorithms(db)
+        pagination = crud.get_algorithms_paginated(db, get_page(), get_per_page())
         edit_algorithm = crud.get_algorithm_by_id(db, edit_algorithm_id) if edit_algorithm_id else None
 
-        return render_template("algorithms.html", algorithms=algorithms, edit_algorithm=edit_algorithm)
+        return render_template(
+            "algorithms.html",
+            algorithms=pagination["items"],
+            pagination=pagination,
+            edit_algorithm=edit_algorithm
+        )
     finally:
         db.close()
 
@@ -175,10 +188,15 @@ def delete_algorithm(algo_id):
 def show_keys():
     db = database.get_session()
     try:
-        keys = crud.get_all_keys(db)
+        pagination = crud.get_keys_paginated(db, get_page(), get_per_page())
         algorithms = crud.get_all_algorithms(db)
 
-        return render_template("keys.html", keys=keys, algorithms=algorithms)
+        return render_template(
+            "keys.html",
+            keys=pagination["items"],
+            algorithms=algorithms,
+            pagination=pagination
+        )
     finally:
         db.close()
 
@@ -291,10 +309,15 @@ def show_frameworks():
     db = database.get_session()
     try:
         edit_framework_id = request.args.get("edit_framework", type=int)
-        frameworks = crud.get_all_frameworks(db)
+        pagination = crud.get_frameworks_paginated(db, get_page(), get_per_page())
         edit_framework = crud.get_framework_by_id(db, edit_framework_id) if edit_framework_id else None
 
-        return render_template("frameworks.html", frameworks=frameworks, edit_framework=edit_framework)
+        return render_template(
+            "frameworks.html",
+            frameworks=pagination["items"],
+            pagination=pagination,
+            edit_framework=edit_framework
+        )
     finally:
         db.close()
 
@@ -361,8 +384,12 @@ def delete_framework(framework_id):
 def show_files():
     db = database.get_session()
     try:
-        files = crud.get_all_files(db)
-        return render_template("files.html", files=files)
+        pagination = crud.get_files_paginated(db, get_page(), get_per_page())
+        return render_template(
+            "files.html",
+            files=pagination["items"],
+            pagination=pagination
+        )
     finally:
         db.close()
 
@@ -490,6 +517,7 @@ def run_operation():
         key_id = request.form.get("key_id", type=int)
         framework_id = request.form.get("framework_id", type=int)
         operation = request.form.get("operation", "").strip()
+        benchmark_runs = request.form.get("benchmark_runs", type=int)
 
         if file_id is None or algorithm_id is None or key_id is None or framework_id is None or not operation:
             flash("Selectează fișierul, algoritmul, cheia, framework-ul și operația.", "danger")
@@ -532,13 +560,14 @@ def run_operation():
             flash("Operația selectată nu este validă.", "danger")
             return redirect(url_for("show_operations"))
 
-        time_ms, memory_kb = crypto_services.run_crypto_operation(
+        benchmark_result = crypto_services.run_crypto_operation(
             algorithm.name,
             framework.name,
             operation,
             input_path,
             output_path,
-            key.key_value
+            key.key_value,
+            runs=benchmark_runs
         )
 
         result_hash = crypto_services.sha256_file(output_path)
@@ -568,13 +597,24 @@ def run_operation():
             framework_id=framework.id,
             key_id=key.id,
             operation=operation_label,
-            time_taken_ms=time_ms,
-            memory_used_kb=memory_kb,
+            time_taken_ms=benchmark_result["time_taken_ms"],
+            memory_used_kb=benchmark_result["memory_used_kb"],
             file_size_bytes=file_size_bytes,
-            result_hash=result_hash
+            result_hash=result_hash,
+            runs_count=benchmark_result["runs_count"],
+            avg_time_ms=benchmark_result["avg_time_ms"],
+            min_time_ms=benchmark_result["min_time_ms"],
+            max_time_ms=benchmark_result["max_time_ms"],
+            avg_memory_kb=benchmark_result["avg_memory_kb"],
+            min_memory_kb=benchmark_result["min_memory_kb"],
+            max_memory_kb=benchmark_result["max_memory_kb"]
         )
 
-        flash(f"Operația de {operation_label.lower()} a fost realizată cu succes.", "success")
+        flash(
+            f"Operația de {operation_label.lower()} a fost realizată cu succes. "
+            f"Timp mediu: {benchmark_result['avg_time_ms']} ms din {benchmark_result['runs_count']} rulări.",
+            "success"
+        )
 
     except Exception as exc:
         db.rollback()
@@ -589,8 +629,25 @@ def run_operation():
 def show_performances():
     db = database.get_session()
     try:
-        performances = crud.get_all_performances(db)
-        return render_template("performances.html", performances=performances)
+        pagination = crud.get_performances_paginated(db, get_page(), get_per_page())
+        summary = crud.get_performance_summary(db)
+
+        chart_labels = [
+            f"{row['algorithm_name']} / {row['framework_name']} / {row['operation']}"
+            for row in summary
+        ]
+        chart_times = [row["avg_time_ms"] for row in summary]
+        chart_memory = [row["avg_memory_kb"] for row in summary]
+
+        return render_template(
+            "performances.html",
+            performances=pagination["items"],
+            pagination=pagination,
+            summary=summary,
+            chart_labels=chart_labels,
+            chart_times=chart_times,
+            chart_memory=chart_memory
+        )
     finally:
         db.close()
 

@@ -5,6 +5,7 @@
     <div class="card-header">
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
             <span>Chei</span>
+            <span class="badge bg-light text-dark">{{ pagination.total }} înregistrări</span>
         </div>
     </div>
     <div class="card-body p-4">
@@ -21,7 +22,7 @@
                                 <label class="form-label">Algoritm AES</label>
                                 <select name="algorithm_id" class="form-select" required>
                                     {% for algo in algorithms %}
-                                        {% if 'AES' in algo.name %}
+                                        {% if 'AES' in algo.name.upper() %}
                                             <option value="{{ algo.id }}">{{ algo.name }} ({{ algo.type }})</option>
                                         {% endif %}
                                     {% endfor %}
@@ -46,7 +47,7 @@
                                 <label class="form-label">Algoritm RSA</label>
                                 <select name="algorithm_id" class="form-select" required>
                                     {% for algo in algorithms %}
-                                        {% if 'RSA' in algo.name %}
+                                        {% if 'RSA' in algo.name.upper() %}
                                             <option value="{{ algo.id }}">{{ algo.name }} ({{ algo.type }})</option>
                                         {% endif %}
                                     {% endfor %}
@@ -131,6 +132,9 @@
                                 </tbody>
                             </table>
                         </div>
+
+                        {% include "_pagination.html" %}
+
                         <div class="small-muted mt-3">Cheile nu se editează pentru a nu modifica rezultatele operațiilor deja realizate.</div>
                     </div>
                 </div>

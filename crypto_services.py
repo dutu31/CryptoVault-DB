@@ -71,6 +71,44 @@ def run_command(command):
     return result.stdout
 
 
+def run_command_timed(command):
+    process = None
+
+    tracemalloc.start()
+
+    try:
+        try:
+            process = subprocess.Popen(
+                command,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True
+            )
+        except FileNotFoundError:
+            raise RuntimeError("OpenSSL nu a fost găsit. Verifică dacă este instalat și adăugat în PATH.")
+
+        start_time = time.perf_counter()
+        stdout, stderr = process.communicate()
+        end_time = time.perf_counter()
+
+        current, peak = tracemalloc.get_traced_memory()
+
+    finally:
+        tracemalloc.stop()
+
+    if process is None:
+        raise RuntimeError("Comanda OpenSSL nu a putut fi pornită.")
+
+    if process.returncode != 0:
+        message = stderr.strip() or stdout.strip() or "Comanda OpenSSL a eșuat."
+        raise RuntimeError(message)
+
+    time_ms = (end_time - start_time) * 1000
+    memory_kb = peak / 1024
+
+    return round(time_ms, 3), round(memory_kb, 3)
+
+
 def generate_rsa_key_pair_openssl(bits=2048):
     with tempfile.TemporaryDirectory() as temp_dir:
         temp_path = Path(temp_dir)
@@ -108,6 +146,45 @@ def measure_action(action):
     memory_kb = peak / 1024
 
     return round(time_ms, 3), round(memory_kb, 3)
+
+
+def build_benchmark_result(times, memories):
+    runs_count = len(times)
+
+    avg_time_ms = sum(times) / runs_count
+    min_time_ms = min(times)
+    max_time_ms = max(times)
+
+    avg_memory_kb = sum(memories) / runs_count
+    min_memory_kb = min(memories)
+    max_memory_kb = max(memories)
+
+    return {
+        "runs_count": runs_count,
+        "time_taken_ms": round(avg_time_ms, 3),
+        "memory_used_kb": round(avg_memory_kb, 3),
+        "avg_time_ms": round(avg_time_ms, 3),
+        "min_time_ms": round(min_time_ms, 3),
+        "max_time_ms": round(max_time_ms, 3),
+        "avg_memory_kb": round(avg_memory_kb, 3),
+        "min_memory_kb": round(min_memory_kb, 3),
+        "max_memory_kb": round(max_memory_kb, 3),
+    }
+
+
+def normalize_runs(runs):
+    try:
+        runs = int(runs)
+    except (TypeError, ValueError):
+        runs = 3
+
+    if runs < 1:
+        runs = 1
+
+    if runs > 10:
+        runs = 10
+
+    return runs
 
 
 def aes_key_bytes(key_value):
@@ -157,7 +234,7 @@ def aes_cryptography_decrypt(input_path, output_path, key_value):
 
 
 def aes_openssl_encrypt(input_path, output_path, key_value):
-    run_command([
+    return run_command_timed([
         "openssl",
         "enc",
         "-aes-256-cbc",
@@ -173,7 +250,7 @@ def aes_openssl_encrypt(input_path, output_path, key_value):
 
 
 def aes_openssl_decrypt(input_path, output_path, key_value):
-    run_command([
+    return run_command_timed([
         "openssl",
         "enc",
         "-aes-256-cbc",
@@ -208,7 +285,7 @@ def rsa_openssl_encrypt(input_path, output_path, key_value):
         public_path = temp_path / "public_key.pem"
         public_path.write_text(key_data["public_key"], encoding="utf-8")
 
-        run_command([
+        return run_command_timed([
             "openssl",
             "pkeyutl",
             "-encrypt",
@@ -232,7 +309,7 @@ def rsa_openssl_decrypt(input_path, output_path, key_value):
         private_path = temp_path / "private_key.pem"
         private_path.write_text(key_data["private_key"], encoding="utf-8")
 
-        run_command([
+        return run_command_timed([
             "openssl",
             "pkeyutl",
             "-decrypt",
@@ -308,44 +385,54 @@ def is_cryptography_framework(framework_name):
     return framework_name in ["cryptography", "cryptography api"]
 
 
-def run_crypto_operation(algorithm_name, framework_name, operation, input_path, output_path, key_value):
+def execute_crypto_once(algorithm_name, framework_name, operation, input_path, output_path, key_value):
+    if "aes" in algorithm_name and framework_name == "openssl" and operation == "encrypt":
+        return aes_openssl_encrypt(input_path, output_path, key_value)
+
+    if "aes" in algorithm_name and framework_name == "openssl" and operation == "decrypt":
+        return aes_openssl_decrypt(input_path, output_path, key_value)
+
+    if "aes" in algorithm_name and is_cryptography_framework(framework_name) and operation == "encrypt":
+        return measure_action(lambda: aes_cryptography_encrypt(input_path, output_path, key_value))
+
+    if "aes" in algorithm_name and is_cryptography_framework(framework_name) and operation == "decrypt":
+        return measure_action(lambda: aes_cryptography_decrypt(input_path, output_path, key_value))
+
+    if "rsa" in algorithm_name and framework_name == "openssl" and operation == "encrypt":
+        return rsa_openssl_encrypt(input_path, output_path, key_value)
+
+    if "rsa" in algorithm_name and framework_name == "openssl" and operation == "decrypt":
+        return rsa_openssl_decrypt(input_path, output_path, key_value)
+
+    if "rsa" in algorithm_name and is_cryptography_framework(framework_name) and operation == "encrypt":
+        return measure_action(lambda: rsa_cryptography_encrypt(input_path, output_path, key_value))
+
+    if "rsa" in algorithm_name and is_cryptography_framework(framework_name) and operation == "decrypt":
+        return measure_action(lambda: rsa_cryptography_decrypt(input_path, output_path, key_value))
+
+    raise RuntimeError("Combinația algoritm/framework/operație nu este suportată.")
+
+
+def run_crypto_operation(algorithm_name, framework_name, operation, input_path, output_path, key_value, runs=3):
     algorithm_name = algorithm_name.strip().lower()
     framework_name = framework_name.strip().lower()
     operation = operation.strip().lower()
+    runs = normalize_runs(runs)
 
-    def action():
-        if "aes" in algorithm_name and framework_name == "openssl" and operation == "encrypt":
-            aes_openssl_encrypt(input_path, output_path, key_value)
-            return
+    times = []
+    memories = []
 
-        if "aes" in algorithm_name and framework_name == "openssl" and operation == "decrypt":
-            aes_openssl_decrypt(input_path, output_path, key_value)
-            return
+    for i in range(runs):
+        time_ms, memory_kb = execute_crypto_once(
+            algorithm_name,
+            framework_name,
+            operation,
+            input_path,
+            output_path,
+            key_value
+        )
 
-        if "aes" in algorithm_name and is_cryptography_framework(framework_name) and operation == "encrypt":
-            aes_cryptography_encrypt(input_path, output_path, key_value)
-            return
+        times.append(time_ms)
+        memories.append(memory_kb)
 
-        if "aes" in algorithm_name and is_cryptography_framework(framework_name) and operation == "decrypt":
-            aes_cryptography_decrypt(input_path, output_path, key_value)
-            return
-
-        if "rsa" in algorithm_name and framework_name == "openssl" and operation == "encrypt":
-            rsa_openssl_encrypt(input_path, output_path, key_value)
-            return
-
-        if "rsa" in algorithm_name and framework_name == "openssl" and operation == "decrypt":
-            rsa_openssl_decrypt(input_path, output_path, key_value)
-            return
-
-        if "rsa" in algorithm_name and is_cryptography_framework(framework_name) and operation == "encrypt":
-            rsa_cryptography_encrypt(input_path, output_path, key_value)
-            return
-
-        if "rsa" in algorithm_name and is_cryptography_framework(framework_name) and operation == "decrypt":
-            rsa_cryptography_decrypt(input_path, output_path, key_value)
-            return
-
-        raise RuntimeError("Combinația algoritm/framework/operație nu este suportată.")
-
-    return measure_action(action)
+    return build_benchmark_result(times, memories)

@@ -12,6 +12,7 @@
 
         <div class="alert alert-info">
             AES este recomandat pentru fișiere normale. RSA este inclus ca algoritm asimetric, dar criptarea RSA directă este potrivită doar pentru fișiere foarte mici.
+            Pentru OpenSSL se măsoară timpul comenzii externe după pornirea procesului, iar pentru Cryptography API se măsoară execuția funcției Python.
         </div>
 
         <div class="row g-4">
@@ -24,6 +25,7 @@
                             <div class="mb-3">
                                 <label class="form-label">Fișier</label>
                                 <select name="file_id" class="form-select" required>
+                                    <option value="">Selectează fișierul</option>
                                     {% for file in files %}
                                         <option value="{{ file.id }}">
                                             {{ file.original_name }} - {{ file.status }}
@@ -35,6 +37,7 @@
                             <div class="mb-3">
                                 <label class="form-label">Algoritm</label>
                                 <select name="algorithm_id" id="algorithmSelect" class="form-select" required>
+                                    <option value="">Selectează algoritmul</option>
                                     {% for algo in algorithms %}
                                         <option value="{{ algo.id }}">
                                             {{ algo.name }} ({{ algo.type }})
@@ -46,6 +49,7 @@
                             <div class="mb-3">
                                 <label class="form-label">Cheie</label>
                                 <select name="key_id" id="keySelect" class="form-select" required>
+                                    <option value="">Selectează mai întâi algoritmul</option>
                                     {% for key in keys %}
                                         <option value="{{ key.id }}" data-algorithm-id="{{ key.algorithm_id }}">
                                             ID {{ key.id }} - {{ key.algorithm.name }}
@@ -57,6 +61,7 @@
                             <div class="mb-3">
                                 <label class="form-label">Framework</label>
                                 <select name="framework_id" class="form-select" required>
+                                    <option value="">Selectează framework-ul</option>
                                     {% for framework in frameworks %}
                                         <option value="{{ framework.id }}">
                                             {{ framework.name }}
@@ -70,6 +75,16 @@
                                 <select name="operation" class="form-select" required>
                                     <option value="encrypt">Criptare</option>
                                     <option value="decrypt">Decriptare</option>
+                                </select>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Număr rulări pentru calculul mediei</label>
+                                <select name="benchmark_runs" class="form-select" required>
+                                    <option value="1">1 rulare</option>
+                                    <option value="3" selected>3 rulări</option>
+                                    <option value="5">5 rulări</option>
+                                    <option value="10">10 rulări</option>
                                 </select>
                             </div>
 

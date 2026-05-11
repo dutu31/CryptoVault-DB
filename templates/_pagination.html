@@ -1,0 +1,31 @@
+{% if pagination and pagination.pages > 1 %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-3">
+    <div class="small-muted">
+        Pagina {{ pagination.page }} din {{ pagination.pages }} · {{ pagination.total }} înregistrări
+    </div>
+
+    <nav aria-label="Paginare">
+        <ul class="pagination pagination-sm mb-0">
+            <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                <a class="page-link" href="{{ url_for(request.endpoint, page=pagination.prev_page, per_page=pagination.per_page) }}">Anterior</a>
+            </li>
+
+            {% for p in range(1, pagination.pages + 1) %}
+                {% if p == 1 or p == pagination.pages or (p >= pagination.page - 2 and p <= pagination.page + 2) %}
+                    <li class="page-item {% if p == pagination.page %}active{% endif %}">
+                        <a class="page-link" href="{{ url_for(request.endpoint, page=p, per_page=pagination.per_page) }}">{{ p }}</a>
+                    </li>
+                {% elif p == pagination.page - 3 or p == pagination.page + 3 %}
+                    <li class="page-item disabled">
+                        <span class="page-link">...</span>
+                    </li>
+                {% endif %}
+            {% endfor %}
+
+            <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                <a class="page-link" href="{{ url_for(request.endpoint, page=pagination.next_page, per_page=pagination.per_page) }}">Următor</a>
+            </li>
+        </ul>
+    </nav>
+</div>
+{% endif %}
