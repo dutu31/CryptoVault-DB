@@ -1,411 +1,312 @@
-import json
-from pathlib import Path
-
 from flask import Flask, render_template, request, redirect, url_for, flash, send_file
+from werkzeug.utils import secure_filename
+from pathlib import Path
+from datetime import datetime
+import uuid
+import json
+import time
 
-import database
+from database import SessionLocal, initialize_database
 import crud
 import crypto_services
 
 app = Flask(__name__)
-app.secret_key = "cheie_super_secreta_pentru_proiect"
+app.secret_key = "crypto-vault-secret-key"
+
+BASE_DATA_DIR = Path("data")
+ORIGINAL_DIR = BASE_DATA_DIR / "original"
+ENCRYPTED_DIR = BASE_DATA_DIR / "encrypted"
+DECRYPTED_DIR = BASE_DATA_DIR / "decrypted"
+
+ORIGINAL_DIR.mkdir(parents=True, exist_ok=True)
+ENCRYPTED_DIR.mkdir(parents=True, exist_ok=True)
+DECRYPTED_DIR.mkdir(parents=True, exist_ok=True)
+
+initialize_database()
 
 
-def get_page():
-    return crud.normalize_page(request.args.get("page", 1))
+def get_session():
+    return SessionLocal()
 
 
-def get_per_page():
-    return crud.normalize_per_page(request.args.get("per_page"))
+def make_unique_name(original_name, prefix="file"):
+    safe_name = secure_filename(original_name)
+
+    if not safe_name:
+        safe_name = prefix
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    unique_id = uuid.uuid4().hex[:8]
+
+    return f"{timestamp}_{unique_id}_{safe_name}"
 
 
-def load_key_json(key_value):
+def operation_label(operation):
+    if operation == "encrypt":
+        return "Criptare"
+
+    if operation == "decrypt":
+        return "Decriptare"
+
+    return operation
+
+
+def get_output_path(file_obj, operation):
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    unique_id = uuid.uuid4().hex[:8]
+    original_path = Path(file_obj.original_name)
+    stem = original_path.stem
+    suffix = original_path.suffix
+
+    if operation == "encrypt":
+        output_name = f"{stem}_{timestamp}_{unique_id}_encrypted.bin"
+        output_path = ENCRYPTED_DIR / output_name
+        return output_name, str(output_path)
+
+    output_suffix = suffix if suffix else ".txt"
+    output_name = f"{stem}_{timestamp}_{unique_id}_decrypted{output_suffix}"
+    output_path = DECRYPTED_DIR / output_name
+
+    return output_name, str(output_path)
+
+
+def get_input_path_for_operation(file_obj, operation):
+    if operation == "encrypt":
+        return file_obj.original_path
+
+    if operation == "decrypt":
+        return file_obj.encrypted_path
+
+    return None
+
+
+def parse_rsa_key(value):
     try:
-        key_data = json.loads(key_value)
+        data = json.loads(value)
+
+        if isinstance(data, dict):
+            return data
     except Exception:
-        return None
+        pass
 
-    if not isinstance(key_data, dict):
-        return None
-
-    return key_data
+    return {}
 
 
-def clean_pem_key(value):
-    if not value:
-        return ""
+def adjust_total_times(benchmark_result, measured_total_operation_ms):
+    runs_count = benchmark_result["runs_count"]
 
-    lines = value.replace("\r", "").split("\n")
-    clean_lines = []
+    inner_avg_total = benchmark_result.get("avg_total_time_ms")
 
-    for line in lines:
-        line = line.strip()
+    if inner_avg_total is None:
+        inner_avg_total = benchmark_result.get("avg_time_ms", 0)
 
-        if not line:
-            continue
+    inner_min_total = benchmark_result.get("min_total_time_ms")
 
-        if line.startswith("-----BEGIN"):
-            continue
+    if inner_min_total is None:
+        inner_min_total = benchmark_result.get("min_time_ms", inner_avg_total)
 
-        if line.startswith("-----END"):
-            continue
+    inner_max_total = benchmark_result.get("max_total_time_ms")
 
-        clean_lines.append(line)
+    if inner_max_total is None:
+        inner_max_total = benchmark_result.get("max_time_ms", inner_avg_total)
 
-    return "\n".join(clean_lines)
+    inner_last_total = benchmark_result.get("total_time_ms")
 
+    if inner_last_total is None:
+        inner_last_total = benchmark_result.get("time_taken_ms", inner_avg_total)
 
-def is_rsa_key(key_value):
-    key_data = load_key_json(key_value)
+    total_inner_sum = float(inner_avg_total) * runs_count
+    overhead_total = measured_total_operation_ms - total_inner_sum
 
-    if key_data is None:
-        return False
+    if overhead_total < 0:
+        overhead_total = 0
 
-    return "private_key" in key_data and "public_key" in key_data
+    overhead_per_run = overhead_total / runs_count
 
+    avg_total_time_ms = measured_total_operation_ms / runs_count
+    min_total_time_ms = float(inner_min_total) + overhead_per_run
+    max_total_time_ms = float(inner_max_total) + overhead_per_run
+    total_time_ms = float(inner_last_total) + overhead_per_run
 
-def private_key_for_display(key_value):
-    key_data = load_key_json(key_value)
+    benchmark_result["total_time_ms"] = round(total_time_ms, 3)
+    benchmark_result["avg_total_time_ms"] = round(avg_total_time_ms, 3)
+    benchmark_result["min_total_time_ms"] = round(min_total_time_ms, 3)
+    benchmark_result["max_total_time_ms"] = round(max_total_time_ms, 3)
 
-    if key_data is None:
-        return key_value
-
-    return clean_pem_key(key_data.get("private_key", ""))
-
-
-def public_key_for_display(key_value):
-    key_data = load_key_json(key_value)
-
-    if key_data is None:
-        return ""
-
-    return clean_pem_key(key_data.get("public_key", ""))
+    return benchmark_result
 
 
-app.jinja_env.filters["is_rsa_key"] = is_rsa_key
-app.jinja_env.filters["private_key"] = private_key_for_display
-app.jinja_env.filters["public_key"] = public_key_for_display
+@app.template_filter("is_rsa_key")
+def is_rsa_key(value):
+    data = parse_rsa_key(value)
 
-database.initialize_database()
-crypto_services.ensure_data_directories()
+    if "private_key" in data or "public_key" in data:
+        return True
+
+    if isinstance(value, str):
+        return "PRIVATE KEY" in value and "PUBLIC KEY" in value
+
+    return False
+
+
+@app.template_filter("private_key")
+def private_key(value):
+    data = parse_rsa_key(value)
+
+    if "private_key" in data:
+        return data["private_key"]
+
+    return value
+
+
+@app.template_filter("public_key")
+def public_key(value):
+    data = parse_rsa_key(value)
+
+    if "public_key" in data:
+        return data["public_key"]
+
+    return value
 
 
 @app.route("/")
 def index():
-    db = database.get_session()
+    db = get_session()
 
     try:
-        stats = {
-            "algorithms": crud.count_algorithms(db),
-            "crypto_keys": crud.count_keys(db),
-            "frameworks": crud.count_frameworks(db),
-            "files": crud.count_files(db),
-            "performances": crud.count_performances(db)
-        }
-
+        stats = crud.get_stats(db)
         return render_template("index.html", stats=stats)
-
     finally:
         db.close()
 
 
 @app.route("/algorithms")
 def show_algorithms():
-    db = database.get_session()
+    db = get_session()
 
     try:
+        page = request.args.get("page", 1, type=int)
+        per_page = request.args.get("per_page", 10, type=int)
         edit_algorithm_id = request.args.get("edit_algorithm", type=int)
-        pagination = crud.get_algorithms_paginated(db, get_page(), get_per_page())
-        edit_algorithm = crud.get_algorithm_by_id(db, edit_algorithm_id) if edit_algorithm_id else None
+
+        algorithms, pagination = crud.get_algorithms_paginated(db, page, per_page)
+        edit_algorithm = crud.get_algorithm(db, edit_algorithm_id) if edit_algorithm_id else None
 
         return render_template(
             "algorithms.html",
-            algorithms=pagination["items"],
+            algorithms=algorithms,
             pagination=pagination,
-            edit_algorithm=edit_algorithm
+            edit_algorithm=edit_algorithm,
         )
-
     finally:
         db.close()
 
 
-@app.route("/algorithm/save", methods=["POST"])
+@app.route("/algorithms/save", methods=["POST"])
 def save_algorithm():
-    db = database.get_session()
+    db = get_session()
 
     try:
         algorithm_id = request.form.get("algorithm_id", type=int)
-        name = request.form.get("name", "").strip()
-        algo_type = request.form.get("type", "").strip()
+        name = request.form.get("name") or request.form.get("algorithm_name")
+        algorithm_type = request.form.get("type") or request.form.get("algorithm_type")
 
-        if not name or not algo_type:
+        if not name or not algorithm_type:
             flash("Completează numele și tipul algoritmului.", "danger")
             return redirect(url_for("show_algorithms"))
 
-        existing_algorithm = crud.get_algorithm_by_name(db, name)
+        crud.save_algorithm(db, name, algorithm_type, algorithm_id)
 
         if algorithm_id:
-            if existing_algorithm and existing_algorithm.id != algorithm_id:
-                flash("Există deja un algoritm cu acest nume în listă.", "warning")
-                return redirect(url_for("show_algorithms"))
-
-            algo = crud.update_algorithm(db, algorithm_id, name, algo_type)
-
-            if algo:
-                flash("Algoritmul a fost actualizat cu succes.", "success")
-            else:
-                flash("Algoritmul nu a fost găsit.", "danger")
+            flash("Algoritmul a fost actualizat cu succes.", "success")
         else:
-            if existing_algorithm:
-                flash("Algoritmul există deja în listă.", "warning")
-                return redirect(url_for("show_algorithms"))
-
-            crud.create_algorithm(db, name, algo_type)
             flash("Algoritmul a fost adăugat cu succes.", "success")
 
-    except Exception as exc:
+        return redirect(url_for("show_algorithms"))
+    except Exception as exception:
         db.rollback()
-        flash(f"Eroare la salvarea algoritmului: {exc}", "danger")
+        flash(str(exception), "danger")
+        return redirect(url_for("show_algorithms"))
+    finally:
+        db.close()
 
+
+@app.route("/algorithms/delete/<int:algorithm_id>")
+def delete_algorithm(algorithm_id):
+    db = get_session()
+
+    try:
+        crud.delete_algorithm(db, algorithm_id)
+        flash("Algoritmul a fost șters cu succes.", "success")
+    except Exception as exception:
+        db.rollback()
+        flash(str(exception), "danger")
     finally:
         db.close()
 
     return redirect(url_for("show_algorithms"))
-
-
-@app.route("/algorithm/delete/<int:algo_id>")
-def delete_algorithm(algo_id):
-    db = database.get_session()
-
-    try:
-        deleted = crud.delete_algorithm(db, algo_id)
-
-        if deleted:
-            flash("Algoritmul a fost șters cu succes.", "warning")
-        else:
-            flash("Algoritmul nu a fost găsit.", "danger")
-
-    except Exception as exc:
-        db.rollback()
-        flash(f"Eroare la ștergerea algoritmului: {exc}", "danger")
-
-    finally:
-        db.close()
-
-    return redirect(url_for("show_algorithms"))
-
-
-@app.route("/keys")
-def show_keys():
-    db = database.get_session()
-
-    try:
-        pagination = crud.get_keys_paginated(db, get_page(), get_per_page())
-        algorithms = crud.get_all_algorithms(db)
-
-        return render_template(
-            "keys.html",
-            keys=pagination["items"],
-            algorithms=algorithms,
-            pagination=pagination
-        )
-
-    finally:
-        db.close()
-
-
-@app.route("/key/save", methods=["POST"])
-def save_key():
-    db = database.get_session()
-
-    try:
-        algorithm_id = request.form.get("algorithm_id", type=int)
-        key_value = request.form.get("key_value", "").strip()
-
-        if algorithm_id is None or not key_value:
-            flash("Completează algoritmul și valoarea cheii.", "danger")
-            return redirect(url_for("show_keys"))
-
-        existing_key = crud.get_key_by_algorithm_and_value(db, algorithm_id, key_value)
-
-        if existing_key:
-            flash("Această cheie există deja pentru algoritmul selectat.", "warning")
-            return redirect(url_for("show_keys"))
-
-        crud.create_key(db, algorithm_id, key_value)
-        flash("Cheia a fost adăugată cu succes.", "success")
-
-    except Exception as exc:
-        db.rollback()
-        flash(f"Eroare la salvarea cheii: {exc}", "danger")
-
-    finally:
-        db.close()
-
-    return redirect(url_for("show_keys"))
-
-
-@app.route("/key/generate-aes", methods=["POST"])
-def generate_aes_key():
-    db = database.get_session()
-
-    try:
-        algorithm_id = request.form.get("algorithm_id", type=int)
-        algorithm = crud.get_algorithm_by_id(db, algorithm_id)
-
-        if algorithm is None:
-            flash("Algoritmul AES nu a fost găsit.", "danger")
-            return redirect(url_for("show_keys"))
-
-        if "AES" not in algorithm.name.upper():
-            flash("Selectează un algoritm AES pentru generarea cheii.", "danger")
-            return redirect(url_for("show_keys"))
-
-        key_value = crypto_services.generate_aes_key()
-        crud.create_key(db, algorithm.id, key_value)
-        flash("Cheia AES a fost generată și salvată în baza de date.", "success")
-
-    except Exception as exc:
-        db.rollback()
-        flash(f"Eroare la generarea cheii AES: {exc}", "danger")
-
-    finally:
-        db.close()
-
-    return redirect(url_for("show_keys"))
-
-
-@app.route("/key/generate-rsa", methods=["POST"])
-def generate_rsa_key():
-    db = database.get_session()
-
-    try:
-        algorithm_id = request.form.get("algorithm_id", type=int)
-        algorithm = crud.get_algorithm_by_id(db, algorithm_id)
-
-        if algorithm is None:
-            flash("Algoritmul RSA nu a fost găsit.", "danger")
-            return redirect(url_for("show_keys"))
-
-        if "RSA" not in algorithm.name.upper():
-            flash("Selectează un algoritm RSA pentru generarea cheii.", "danger")
-            return redirect(url_for("show_keys"))
-
-        key_value = crypto_services.generate_rsa_key_pair_openssl()
-        crud.create_key(db, algorithm.id, key_value)
-        flash("Perechea de chei RSA a fost generată cu OpenSSL și salvată în baza de date.", "success")
-
-    except Exception as exc:
-        db.rollback()
-        flash(f"Eroare la generarea cheii RSA: {exc}", "danger")
-
-    finally:
-        db.close()
-
-    return redirect(url_for("show_keys"))
-
-
-@app.route("/key/delete/<int:key_id>")
-def delete_key(key_id):
-    db = database.get_session()
-
-    try:
-        deleted = crud.delete_key(db, key_id)
-
-        if deleted:
-            flash("Cheia a fost ștearsă cu succes.", "warning")
-        else:
-            flash("Cheia nu a fost găsită.", "danger")
-
-    except Exception as exc:
-        db.rollback()
-        flash(f"Eroare la ștergerea cheii: {exc}", "danger")
-
-    finally:
-        db.close()
-
-    return redirect(url_for("show_keys"))
 
 
 @app.route("/frameworks")
 def show_frameworks():
-    db = database.get_session()
+    db = get_session()
 
     try:
+        page = request.args.get("page", 1, type=int)
+        per_page = request.args.get("per_page", 10, type=int)
         edit_framework_id = request.args.get("edit_framework", type=int)
-        pagination = crud.get_frameworks_paginated(db, get_page(), get_per_page())
-        edit_framework = crud.get_framework_by_id(db, edit_framework_id) if edit_framework_id else None
+
+        frameworks, pagination = crud.get_frameworks_paginated(db, page, per_page)
+        edit_framework = crud.get_framework(db, edit_framework_id) if edit_framework_id else None
 
         return render_template(
             "frameworks.html",
-            frameworks=pagination["items"],
+            frameworks=frameworks,
             pagination=pagination,
-            edit_framework=edit_framework
+            edit_framework=edit_framework,
         )
-
     finally:
         db.close()
 
 
-@app.route("/framework/save", methods=["POST"])
+@app.route("/frameworks/save", methods=["POST"])
 def save_framework():
-    db = database.get_session()
+    db = get_session()
 
     try:
         framework_id = request.form.get("framework_id", type=int)
-        name = request.form.get("name", "").strip()
+        name = request.form.get("name")
 
         if not name:
             flash("Completează numele framework-ului.", "danger")
             return redirect(url_for("show_frameworks"))
 
-        existing_framework = crud.get_framework_by_name(db, name)
+        crud.save_framework(db, name, framework_id)
 
         if framework_id:
-            if existing_framework and existing_framework.id != framework_id:
-                flash("Există deja un framework cu acest nume în listă.", "warning")
-                return redirect(url_for("show_frameworks"))
-
-            framework = crud.update_framework(db, framework_id, name)
-
-            if framework:
-                flash("Framework-ul a fost actualizat cu succes.", "success")
-            else:
-                flash("Framework-ul nu a fost găsit.", "danger")
+            flash("Framework-ul a fost actualizat cu succes.", "success")
         else:
-            if existing_framework:
-                flash("Framework-ul există deja în listă.", "warning")
-                return redirect(url_for("show_frameworks"))
-
-            crud.create_framework(db, name)
             flash("Framework-ul a fost adăugat cu succes.", "success")
 
-    except Exception as exc:
+        return redirect(url_for("show_frameworks"))
+    except Exception as exception:
         db.rollback()
-        flash(f"Eroare la salvarea framework-ului: {exc}", "danger")
-
+        flash(str(exception), "danger")
+        return redirect(url_for("show_frameworks"))
     finally:
         db.close()
 
-    return redirect(url_for("show_frameworks"))
 
-
-@app.route("/framework/delete/<int:framework_id>")
+@app.route("/frameworks/delete/<int:framework_id>")
 def delete_framework(framework_id):
-    db = database.get_session()
+    db = get_session()
 
     try:
-        deleted = crud.delete_framework(db, framework_id)
-
-        if deleted:
-            flash("Framework-ul a fost șters cu succes.", "warning")
-        else:
-            flash("Framework-ul nu a fost găsit.", "danger")
-
-    except Exception as exc:
+        crud.delete_framework(db, framework_id)
+        flash("Framework-ul a fost șters cu succes.", "success")
+    except Exception as exception:
         db.rollback()
-        flash(f"Eroare la ștergerea framework-ului: {exc}", "danger")
-
+        flash(str(exception), "danger")
     finally:
         db.close()
 
@@ -414,124 +315,243 @@ def delete_framework(framework_id):
 
 @app.route("/files")
 def show_files():
-    db = database.get_session()
+    db = get_session()
 
     try:
-        pagination = crud.get_files_paginated(db, get_page(), get_per_page())
+        page = request.args.get("page", 1, type=int)
+        per_page = request.args.get("per_page", 10, type=int)
+
+        files, pagination = crud.get_files_paginated(db, page, per_page)
 
         return render_template(
             "files.html",
-            files=pagination["items"],
-            pagination=pagination
+            files=files,
+            pagination=pagination,
         )
-
     finally:
         db.close()
 
 
-@app.route("/file/save", methods=["POST"])
+@app.route("/files/save", methods=["POST"])
 def save_file():
-    db = database.get_session()
+    db = get_session()
 
     try:
         uploaded_file = request.files.get("upload_file")
 
-        if uploaded_file is None or uploaded_file.filename.strip() == "":
-            flash("Încarcă un fișier.", "danger")
+        if uploaded_file is None or uploaded_file.filename == "":
+            flash("Alege un fișier pentru încărcare.", "danger")
             return redirect(url_for("show_files"))
 
-        original_name = uploaded_file.filename.strip()
-        stored_name = crypto_services.unique_file_name(original_name)
-        save_path = crypto_services.ORIGINAL_DIR / stored_name
+        original_name = uploaded_file.filename
+        stored_name = make_unique_name(original_name)
+        original_path = ORIGINAL_DIR / stored_name
 
-        uploaded_file.save(save_path)
+        uploaded_file.save(original_path)
 
-        hash_value = crypto_services.sha256_file(save_path)
-        size_bytes = save_path.stat().st_size
+        hash_value = crypto_services.sha256_file(str(original_path))
+        size_bytes = original_path.stat().st_size
 
         crud.create_file(
-            db,
+            db=db,
             original_name=original_name,
             stored_name=stored_name,
-            original_path=str(save_path),
-            status="Ne-criptat",
+            original_path=str(original_path),
             hash_value=hash_value,
-            size_bytes=size_bytes
+            size_bytes=size_bytes,
         )
 
-        flash("Fișierul a fost încărcat și salvat în baza de date.", "success")
-
-    except Exception as exc:
+        flash("Fișierul a fost încărcat cu succes.", "success")
+        return redirect(url_for("show_files"))
+    except Exception as exception:
         db.rollback()
-        flash(f"Eroare la salvarea fișierului: {exc}", "danger")
-
+        flash(str(exception), "danger")
+        return redirect(url_for("show_files"))
     finally:
         db.close()
 
-    return redirect(url_for("show_files"))
 
-
-@app.route("/file/delete/<int:file_id>")
-def delete_file(file_id):
-    db = database.get_session()
-
-    try:
-        deleted = crud.delete_file(db, file_id)
-
-        if deleted:
-            flash("Fișierul a fost șters din baza de date.", "warning")
-        else:
-            flash("Fișierul nu a fost găsit.", "danger")
-
-    except Exception as exc:
-        db.rollback()
-        flash(f"Eroare la ștergerea fișierului: {exc}", "danger")
-
-    finally:
-        db.close()
-
-    return redirect(url_for("show_files"))
-
-
-@app.route("/file/download/<int:file_id>/<kind>")
+@app.route("/files/download/<int:file_id>/<kind>")
 def download_file(file_id, kind):
-    db = database.get_session()
-    path_value = None
-    download_name = None
+    db = get_session()
 
     try:
-        db_file = crud.get_file_by_id(db, file_id)
+        file_obj = crud.get_file(db, file_id)
 
-        if db_file is None:
-            flash("Fișierul nu a fost găsit.", "danger")
+        if file_obj is None:
+            flash("Fișierul nu există.", "danger")
             return redirect(url_for("show_files"))
 
         if kind == "original":
-            path_value = db_file.original_path
-            download_name = db_file.original_name
+            path = file_obj.original_path
+            download_name = file_obj.original_name
         elif kind == "encrypted":
-            path_value = db_file.encrypted_path
-            download_name = db_file.encrypted_name
+            path = file_obj.encrypted_path
+            download_name = file_obj.encrypted_name
         elif kind == "decrypted":
-            path_value = db_file.decrypted_path
-            download_name = db_file.decrypted_name
+            path = file_obj.decrypted_path
+            download_name = file_obj.decrypted_name
         else:
-            flash("Tip de descărcare invalid.", "danger")
+            flash("Tip de fișier invalid.", "danger")
             return redirect(url_for("show_files"))
 
-        if not path_value or not Path(path_value).exists():
-            flash("Fișierul fizic nu există pe disc.", "danger")
+        if not path or not Path(path).exists():
+            flash("Fișierul nu există pe disc.", "danger")
             return redirect(url_for("show_files"))
 
+        return send_file(path, as_attachment=True, download_name=download_name)
     finally:
         db.close()
 
-    return send_file(path_value, as_attachment=True, download_name=download_name)
+
+@app.route("/files/delete/<int:file_id>")
+def delete_file(file_id):
+    db = get_session()
+
+    try:
+        file_obj = crud.get_file(db, file_id)
+
+        if file_obj:
+            paths = [
+                file_obj.original_path,
+                file_obj.encrypted_path,
+                file_obj.decrypted_path,
+            ]
+
+            for path in paths:
+                if path and Path(path).exists():
+                    Path(path).unlink()
+
+        crud.delete_file(db, file_id)
+        flash("Fișierul a fost șters cu succes.", "success")
+    except Exception as exception:
+        db.rollback()
+        flash(str(exception), "danger")
+    finally:
+        db.close()
+
+    return redirect(url_for("show_files"))
+
+
+@app.route("/keys")
+def show_keys():
+    db = get_session()
+
+    try:
+        page = request.args.get("page", 1, type=int)
+        per_page = request.args.get("per_page", 10, type=int)
+
+        keys, pagination = crud.get_keys_paginated(db, page, per_page)
+        algorithms = crud.get_all_algorithms(db)
+
+        return render_template(
+            "keys.html",
+            keys=keys,
+            algorithms=algorithms,
+            pagination=pagination,
+        )
+    finally:
+        db.close()
+
+
+@app.route("/keys/save", methods=["POST"])
+def save_key():
+    db = get_session()
+
+    try:
+        algorithm_id = request.form.get("algorithm_id", type=int)
+        key_value = request.form.get("key_value")
+
+        if not algorithm_id or not key_value:
+            flash("Completează algoritmul și valoarea cheii.", "danger")
+            return redirect(url_for("show_keys"))
+
+        crud.create_key(db, algorithm_id, key_value)
+        flash("Cheia a fost adăugată cu succes.", "success")
+
+        return redirect(url_for("show_keys"))
+    except Exception as exception:
+        db.rollback()
+        flash(str(exception), "danger")
+        return redirect(url_for("show_keys"))
+    finally:
+        db.close()
+
+
+@app.route("/keys/generate-aes", methods=["POST"])
+def generate_aes_key():
+    db = get_session()
+
+    try:
+        algorithm_id = request.form.get("algorithm_id", type=int)
+
+        if not algorithm_id:
+            flash("Selectează algoritmul AES.", "danger")
+            return redirect(url_for("show_keys"))
+
+        key_value = crypto_services.generate_aes_key()
+        crud.create_key(db, algorithm_id, key_value)
+
+        flash("Cheia AES a fost generată cu succes.", "success")
+        return redirect(url_for("show_keys"))
+    except Exception as exception:
+        db.rollback()
+        flash(str(exception), "danger")
+        return redirect(url_for("show_keys"))
+    finally:
+        db.close()
+
+
+@app.route("/keys/generate-rsa", methods=["POST"])
+def generate_rsa_key():
+    db = get_session()
+
+    try:
+        algorithm_id = request.form.get("algorithm_id", type=int)
+
+        if not algorithm_id:
+            flash("Selectează algoritmul RSA.", "danger")
+            return redirect(url_for("show_keys"))
+
+        if hasattr(crypto_services, "generate_rsa_key_pair"):
+            key_value = crypto_services.generate_rsa_key_pair()
+        else:
+            key_value = crypto_services.generate_rsa_key()
+
+        if isinstance(key_value, dict):
+            key_value = json.dumps(key_value, ensure_ascii=False)
+
+        crud.create_key(db, algorithm_id, key_value)
+
+        flash("Perechea de chei RSA a fost generată cu succes.", "success")
+        return redirect(url_for("show_keys"))
+    except Exception as exception:
+        db.rollback()
+        flash(str(exception), "danger")
+        return redirect(url_for("show_keys"))
+    finally:
+        db.close()
+
+
+@app.route("/keys/delete/<int:key_id>")
+def delete_key(key_id):
+    db = get_session()
+
+    try:
+        crud.delete_key(db, key_id)
+        flash("Cheia a fost ștearsă cu succes.", "success")
+    except Exception as exception:
+        db.rollback()
+        flash(str(exception), "danger")
+    finally:
+        db.close()
+
+    return redirect(url_for("show_keys"))
 
 
 @app.route("/operations")
 def show_operations():
-    db = database.get_session()
+    db = get_session()
 
     try:
         files = crud.get_all_files(db)
@@ -544,192 +564,243 @@ def show_operations():
             files=files,
             algorithms=algorithms,
             keys=keys,
-            frameworks=frameworks
+            frameworks=frameworks,
         )
-
     finally:
         db.close()
 
 
-@app.route("/operation/run", methods=["POST"])
+@app.route("/operations/run", methods=["POST"])
 def run_operation():
-    db = database.get_session()
+    db = get_session()
 
     try:
         file_id = request.form.get("file_id", type=int)
         algorithm_id = request.form.get("algorithm_id", type=int)
         key_id = request.form.get("key_id", type=int)
         framework_id = request.form.get("framework_id", type=int)
-        operation = request.form.get("operation", "").strip()
-        benchmark_runs = request.form.get("benchmark_runs", type=int)
+        operation = request.form.get("operation")
+        benchmark_runs = request.form.get("benchmark_runs", 1, type=int)
 
-        if file_id is None or algorithm_id is None or key_id is None or framework_id is None or not operation:
-            flash("Selectează fișierul, algoritmul, cheia, framework-ul și operația.", "danger")
-            return redirect(url_for("show_operations"))
+        if benchmark_runs < 1:
+            benchmark_runs = 1
 
-        db_file = crud.get_file_by_id(db, file_id)
-        algorithm = crud.get_algorithm_by_id(db, algorithm_id)
-        key = crud.get_key_by_id(db, key_id)
-        framework = crud.get_framework_by_id(db, framework_id)
+        file_obj = crud.get_file(db, file_id)
+        algorithm = crud.get_algorithm(db, algorithm_id)
+        key = crud.get_key(db, key_id)
+        framework = crud.get_framework(db, framework_id)
 
-        if db_file is None or algorithm is None or key is None or framework is None:
+        if file_obj is None or algorithm is None or key is None or framework is None:
             flash("Datele selectate nu sunt valide.", "danger")
             return redirect(url_for("show_operations"))
 
-        if key.algorithm_id != algorithm.id:
-            flash("Cheia selectată nu aparține algoritmului ales.", "danger")
-            return redirect(url_for("show_operations"))
-
-        if operation == "encrypt":
-            if not db_file.original_path or not Path(db_file.original_path).exists():
-                flash("Fișierul original nu există pe disc.", "danger")
-                return redirect(url_for("show_operations"))
-
-            input_path = Path(db_file.original_path)
-            output_name = crypto_services.output_file_name(db_file.original_name, "encrypted", ".enc")
-            output_path = crypto_services.ENCRYPTED_DIR / output_name
-            operation_label = "Criptare"
-
-        elif operation == "decrypt":
-            if not db_file.encrypted_path or not Path(db_file.encrypted_path).exists():
-                flash("Nu există fișier criptat pentru decriptare.", "danger")
-                return redirect(url_for("show_operations"))
-
-            input_path = Path(db_file.encrypted_path)
-            output_name = crypto_services.output_file_name(db_file.original_name, "decrypted", "")
-            output_path = crypto_services.DECRYPTED_DIR / output_name
-            operation_label = "Decriptare"
-
-        else:
+        if operation not in ["encrypt", "decrypt"]:
             flash("Operația selectată nu este validă.", "danger")
             return redirect(url_for("show_operations"))
 
+        total_operation_start = time.perf_counter()
+
+        input_path = get_input_path_for_operation(file_obj, operation)
+
+        if not input_path or not Path(input_path).exists():
+            if operation == "decrypt":
+                flash("Pentru decriptare trebuie să existe mai întâi un fișier criptat.", "danger")
+            else:
+                flash("Fișierul original nu există pe disc.", "danger")
+
+            return redirect(url_for("show_operations"))
+
+        input_size_bytes = Path(input_path).stat().st_size
+
+        output_name, output_path = get_output_path(file_obj, operation)
+
         benchmark_result = crypto_services.run_crypto_operation(
-            algorithm.name,
-            framework.name,
-            operation,
-            input_path,
-            output_path,
-            key.key_value,
-            runs=benchmark_runs
+            operation=operation,
+            algorithm_name=algorithm.name,
+            framework_name=framework.name,
+            key_value=key.key_value,
+            input_path=input_path,
+            output_path=output_path,
+            runs=benchmark_runs,
         )
 
-        result_hash = crypto_services.sha256_file(output_path)
-        file_size_bytes = output_path.stat().st_size
+        output_path_obj = Path(output_path)
 
-        if operation == "encrypt":
-            crud.update_file_after_encrypt(
-                db,
-                db_file.id,
-                output_name,
-                str(output_path),
-                result_hash
-            )
-        else:
-            crud.update_file_after_decrypt(
-                db,
-                db_file.id,
-                output_name,
-                str(output_path),
-                result_hash
-            )
+        if not output_path_obj.exists():
+            flash("Operația nu a generat fișierul rezultat.", "danger")
+            return redirect(url_for("show_operations"))
+
+        output_hash = crypto_services.sha256_file(str(output_path_obj))
+        output_size_bytes = output_path_obj.stat().st_size
+
+        crud.update_file_after_operation(
+            db=db,
+            file_id=file_obj.id,
+            operation=operation,
+            output_name=output_name,
+            output_path=str(output_path_obj),
+            output_hash=output_hash,
+            output_size=output_size_bytes,
+        )
+
+        total_operation_end = time.perf_counter()
+        measured_total_operation_ms = (total_operation_end - total_operation_start) * 1000
+
+        benchmark_result = adjust_total_times(
+            benchmark_result=benchmark_result,
+            measured_total_operation_ms=measured_total_operation_ms,
+        )
 
         crud.create_performance(
-            db,
-            file_id=db_file.id,
+            db=db,
+            file_id=file_obj.id,
             algorithm_id=algorithm.id,
             framework_id=framework.id,
             key_id=key.id,
-            operation=operation_label,
-
+            operation=operation_label(operation),
             time_taken_ms=benchmark_result["time_taken_ms"],
             memory_used_kb=benchmark_result["memory_used_kb"],
             total_time_ms=benchmark_result["total_time_ms"],
-
-            file_size_bytes=file_size_bytes,
-            result_hash=result_hash,
-
             runs_count=benchmark_result["runs_count"],
-
             avg_time_ms=benchmark_result["avg_time_ms"],
             min_time_ms=benchmark_result["min_time_ms"],
             max_time_ms=benchmark_result["max_time_ms"],
-
             avg_total_time_ms=benchmark_result["avg_total_time_ms"],
             min_total_time_ms=benchmark_result["min_total_time_ms"],
             max_total_time_ms=benchmark_result["max_total_time_ms"],
-
             avg_memory_kb=benchmark_result["avg_memory_kb"],
             min_memory_kb=benchmark_result["min_memory_kb"],
-            max_memory_kb=benchmark_result["max_memory_kb"]
+            max_memory_kb=benchmark_result["max_memory_kb"],
+            input_size_bytes=input_size_bytes,
+            file_size_bytes=output_size_bytes,
+            result_hash=output_hash,
         )
 
-        flash(
-            f"Operația de {operation_label.lower()} a fost realizată cu succes. "
-            f"Timp execuție mediu: {benchmark_result['avg_time_ms']} ms. "
-            f"Timp total mediu: {benchmark_result['avg_total_time_ms']} ms. "
-            f"Număr rulări: {benchmark_result['runs_count']}.",
-            "success"
+        crypto_ms_per_byte = None
+        total_ms_per_byte = None
+
+        if input_size_bytes > 0:
+            crypto_ms_per_byte = round(benchmark_result["avg_time_ms"] / input_size_bytes, 9)
+            total_ms_per_byte = round(benchmark_result["avg_total_time_ms"] / input_size_bytes, 9)
+
+        message = (
+            f"Operația a fost executată cu succes. "
+            f"Timp de execuție criptografică mediu: {benchmark_result['avg_time_ms']} ms. "
+            f"Timp total al operației mediu: {benchmark_result['avg_total_time_ms']} ms. "
+            f"Dimensiune intrare: {input_size_bytes} bytes."
         )
 
-    except Exception as exc:
+        if crypto_ms_per_byte is not None and total_ms_per_byte is not None:
+            message += (
+                f" Timp criptografic per octet: {crypto_ms_per_byte} ms/octet. "
+                f"Timp total per octet: {total_ms_per_byte} ms/octet."
+            )
+
+        flash(message, "success")
+
+        return redirect(url_for("show_performances"))
+    except Exception as exception:
         db.rollback()
-        flash(f"Eroare la executarea operației: {exc}", "danger")
-
+        flash(str(exception), "danger")
+        return redirect(url_for("show_operations"))
     finally:
         db.close()
-
-    return redirect(url_for("show_operations"))
 
 
 @app.route("/performances")
 def show_performances():
-    db = database.get_session()
+    db = get_session()
 
     try:
-        pagination = crud.get_performances_paginated(db, get_page(), get_per_page())
+        page = request.args.get("page", 1, type=int)
+        per_page = request.args.get("per_page", 5, type=int)
+
+        performances, pagination = crud.get_performances_paginated(db, page, per_page)
         summary = crud.get_performance_summary(db)
 
         chart_labels = [
-            f"{row['algorithm_name']} / {row['framework_name']} / {row['operation']}"
+            f"{row['algorithm_name']} · {row['framework_name']} · {row['operation']}"
             for row in summary
         ]
 
-        chart_execution_times = [row["avg_time_ms"] for row in summary]
-        chart_total_times = [row["avg_total_time_ms"] for row in summary]
-        chart_memory = [row["avg_memory_kb"] for row in summary]
+        chart_execution_times = [
+            row["avg_time_ms"]
+            for row in summary
+        ]
+
+        chart_total_times = [
+            row["avg_total_time_ms"]
+            for row in summary
+        ]
+
+        chart_memory = [
+            row["avg_memory_kb"]
+            for row in summary
+        ]
 
         return render_template(
             "performances.html",
-            performances=pagination["items"],
+            performances=performances,
             pagination=pagination,
             summary=summary,
             chart_labels=chart_labels,
             chart_execution_times=chart_execution_times,
             chart_total_times=chart_total_times,
-            chart_memory=chart_memory
+            chart_memory=chart_memory,
         )
-
     finally:
         db.close()
 
 
-@app.route("/performance/delete/<int:performance_id>")
-def delete_performance(performance_id):
-    db = database.get_session()
+@app.route("/analysis")
+def show_analysis():
+    db = get_session()
 
     try:
-        deleted = crud.delete_performance(db, performance_id)
+        analysis_rows = crud.get_performance_analysis(db)
 
-        if deleted:
-            flash("Înregistrarea de performanță a fost ștearsă.", "warning")
-        else:
-            flash("Înregistrarea de performanță nu a fost găsită.", "danger")
+        chart_labels = [
+            f"{row['algorithm_name']} · {row['framework_name']} · {row['operation']}"
+            for row in analysis_rows
+        ]
 
-    except Exception as exc:
+        chart_crypto_per_byte = [
+            row["avg_crypto_ms_per_byte"]
+            for row in analysis_rows
+        ]
+
+        chart_total_per_byte = [
+            row["avg_total_ms_per_byte"]
+            for row in analysis_rows
+        ]
+
+        chart_memory = [
+            row["avg_memory_kb"]
+            for row in analysis_rows
+        ]
+
+        return render_template(
+            "analysis.html",
+            analysis_rows=analysis_rows,
+            chart_labels=chart_labels,
+            chart_crypto_per_byte=chart_crypto_per_byte,
+            chart_total_per_byte=chart_total_per_byte,
+            chart_memory=chart_memory,
+        )
+    finally:
+        db.close()
+
+
+@app.route("/performances/delete/<int:performance_id>")
+def delete_performance(performance_id):
+    db = get_session()
+
+    try:
+        crud.delete_performance(db, performance_id)
+        flash("Înregistrarea de performanță a fost ștearsă cu succes.", "success")
+    except Exception as exception:
         db.rollback()
-        flash(f"Eroare la ștergerea performanței: {exc}", "danger")
-
+        flash(str(exception), "danger")
     finally:
         db.close()
 
@@ -737,5 +808,4 @@ def delete_performance(performance_id):
 
 
 if __name__ == "__main__":
-    print("=== Serverul Web CryptoVault a pornit! ===")
     app.run(debug=True)

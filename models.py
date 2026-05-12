@@ -88,6 +88,7 @@ class Performance(Base):
     min_memory_kb = Column(Float, nullable=True)
     max_memory_kb = Column(Float, nullable=True)
 
+    input_size_bytes = Column(Integer, nullable=True)
     file_size_bytes = Column(Integer, nullable=True)
     result_hash = Column(String(256), nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow, nullable=True)

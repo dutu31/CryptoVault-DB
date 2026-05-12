@@ -1,0 +1,507 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+    .chart-framework-select {
+        max-width: 230px;
+        border-radius: 999px;
+        border: 1px solid #cbd5e1;
+        background-color: #f8fafc;
+        color: #1f2937;
+        font-weight: 600;
+        font-size: 0.85rem;
+        padding: 0.45rem 2.4rem 0.45rem 1rem;
+        box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
+        transition: all 0.2s ease-in-out;
+        cursor: pointer;
+    }
+
+    .chart-framework-select:hover {
+        background-color: #ffffff;
+        border-color: #94a3b8;
+        box-shadow: 0 8px 20px rgba(15, 23, 42, 0.12);
+    }
+
+    .chart-framework-select:focus {
+        border-color: #38bdf8;
+        box-shadow: 0 0 0 0.18rem rgba(56, 189, 248, 0.25);
+    }
+
+    @media (max-width: 768px) {
+        .chart-framework-select {
+            max-width: 100%;
+            width: 100%;
+        }
+    }
+</style>
+
+<div class="card section-card">
+    <div class="card-header">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <span>Analiză performanțe</span>
+            <span class="badge bg-light text-dark">{{ analysis_rows|length }} comparații</span>
+        </div>
+    </div>
+
+    <div class="card-body p-4">
+        <p class="section-subtitle mb-4">
+            Această pagină compară performanțele normalizate în funcție de dimensiunea fișierului procesat.
+            Rezultatele sunt grupate după algoritm, framework și operație.
+        </p>
+
+        <div class="row g-4 mb-4">
+            <div class="col-xl-6">
+                <div class="card table-card h-100">
+                    <div class="card-header">
+                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                            <span>Viteză de procesare criptografică (MB/s)</span>
+                            <select class="form-select form-select-sm chart-framework-select" id="speedFrameworkSelect"></select>
+                        </div>
+                    </div>
+
+                    <div class="card-body">
+                        <p class="small-muted">
+                            Viteza este calculată pe baza timpului de execuție criptografică per octet.
+                            O valoare mai mare înseamnă procesare mai rapidă.
+                        </p>
+
+                        <canvas id="speedChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-xl-6">
+                <div class="card table-card h-100">
+                    <div class="card-header">
+                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                            <span>Timp de execuție criptografică per octet</span>
+                            <select class="form-select form-select-sm chart-framework-select" id="cryptoFrameworkSelect"></select>
+                        </div>
+                    </div>
+
+                    <div class="card-body">
+                        <p class="small-muted">
+                            O valoare mai mică înseamnă execuție criptografică mai rapidă.
+                            Valorile sunt afișate în ms/octet.
+                        </p>
+
+                        <canvas id="cryptoTimeChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-4 mb-4">
+            <div class="col-xl-6">
+                <div class="card table-card h-100">
+                    <div class="card-header">
+                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                            <span>Timp total al operației per octet</span>
+                            <select class="form-select form-select-sm chart-framework-select" id="totalFrameworkSelect"></select>
+                        </div>
+                    </div>
+
+                    <div class="card-body">
+                        <p class="small-muted">
+                            Timpul total include operația completă realizată de aplicație.
+                            Valorile sunt afișate în ms/octet.
+                        </p>
+
+                        <canvas id="totalTimeChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-xl-6">
+                <div class="card table-card h-100">
+                    <div class="card-header">
+                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                            <span>Cost suplimentar al aplicației per octet</span>
+                            <select class="form-select form-select-sm chart-framework-select" id="overheadFrameworkSelect"></select>
+                        </div>
+                    </div>
+
+                    <div class="card-body">
+                        <p class="small-muted">
+                            Costul suplimentar este diferența dintre timpul total al operației și timpul criptografic.
+                            Valorile sunt afișate în ms/octet.
+                        </p>
+
+                        <canvas id="overheadChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-4 mb-4">
+            <div class="col-xl-6">
+                <div class="card table-card h-100">
+                    <div class="card-header">
+                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                            <span>Cost suplimentar procentual</span>
+                            <select class="form-select form-select-sm chart-framework-select" id="overheadPercentFrameworkSelect"></select>
+                        </div>
+                    </div>
+
+                    <div class="card-body">
+                        <p class="small-muted">
+                            Arată cât la sută din timpul criptografic reprezintă costul suplimentar al aplicației.
+                        </p>
+
+                        <canvas id="overheadPercentChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-xl-6">
+                <div class="card table-card h-100">
+                    <div class="card-header">
+                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                            <span>Memorie medie utilizată (KB)</span>
+                            <select class="form-select form-select-sm chart-framework-select" id="memoryFrameworkSelect"></select>
+                        </div>
+                    </div>
+
+                    <div class="card-body">
+                        <p class="small-muted">
+                            Graficul arată memoria medie folosită pentru fiecare combinație algoritm-framework-operație.
+                        </p>
+
+                        <canvas id="memoryChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card table-card">
+            <div class="card-header">Tabel analiză comparativă</div>
+
+            <div class="card-body">
+                {% if analysis_rows %}
+                    <div class="table-responsive">
+                        <table class="table table-hover table-sm align-middle">
+                            <thead>
+                                <tr>
+                                    <th>Algoritm</th>
+                                    <th>Framework</th>
+                                    <th>Operație</th>
+                                    <th>Înregistrări</th>
+                                    <th>Total rulări</th>
+                                    <th>Dimensiune totală intrare</th>
+                                    <th>Timp criptografic / octet mediu</th>
+                                    <th>Timp criptografic / octet min/max</th>
+                                    <th>Timp total / octet mediu</th>
+                                    <th>Timp total / octet min/max</th>
+                                    <th>Memorie medie</th>
+                                </tr>
+                            </thead>
+
+                            <tbody>
+                            {% for row in analysis_rows %}
+                                <tr>
+                                    <td>{{ row.algorithm_name }}</td>
+                                    <td>{{ row.framework_name }}</td>
+                                    <td>{{ row.operation }}</td>
+                                    <td>{{ row.records_count }}</td>
+                                    <td>{{ row.runs_total }}</td>
+                                    <td>{{ row.input_bytes_total }} bytes</td>
+                                    <td>{{ row.avg_crypto_ms_per_byte }} ms/octet</td>
+                                    <td>
+                                        {{ row.min_crypto_ms_per_byte }}
+                                        /
+                                        {{ row.max_crypto_ms_per_byte }}
+                                        ms/octet
+                                    </td>
+                                    <td>{{ row.avg_total_ms_per_byte }} ms/octet</td>
+                                    <td>
+                                        {{ row.min_total_ms_per_byte }}
+                                        /
+                                        {{ row.max_total_ms_per_byte }}
+                                        ms/octet
+                                    </td>
+                                    <td>{{ row.avg_memory_kb }} KB</td>
+                                </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="small-muted mt-3">
+                        <strong>Timp criptografic / octet</strong> = timpul de execuție criptografică împărțit la dimensiunea fișierului de intrare.
+                        <br>
+                        <strong>Timp total / octet</strong> = timpul total al operației împărțit la dimensiunea fișierului de intrare.
+                        <br>
+                        <strong>Cost suplimentar</strong> = timp total / octet - timp criptografic / octet.
+                        <br>
+                        <strong>Cost suplimentar procentual</strong> = cost suplimentar raportat la timpul criptografic.
+                        <br>
+                        <strong>Viteză de procesare</strong> = câți MB pot fi procesați într-o secundă, calculat din timpul criptografic per octet.
+                    </div>
+                {% else %}
+                    <div class="text-center text-muted py-4">
+                        Nu există suficiente date pentru analiză.
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script id="analysis-rows-data" type="application/json">{{ analysis_rows|tojson }}</script>
+
+<script>
+const analysisRows = JSON.parse(document.getElementById("analysis-rows-data").textContent);
+
+const chartInstances = {};
+
+function toNumber(value) {
+    const numberValue = Number(value);
+
+    if (Number.isNaN(numberValue)) {
+        return 0;
+    }
+
+    return numberValue;
+}
+
+function uniqueValues(values) {
+    return [...new Set(values)];
+}
+
+function rowLabel(row) {
+    return row.algorithm_name + " | " + row.operation;
+}
+
+function getFrameworks() {
+    return uniqueValues(analysisRows.map(function(row) {
+        return row.framework_name;
+    }));
+}
+
+function populateFrameworkSelect(selectId) {
+    const select = document.getElementById(selectId);
+
+    if (!select) {
+        return;
+    }
+
+    select.innerHTML = "";
+
+    const frameworks = getFrameworks();
+
+    if (frameworks.length === 0) {
+        const option = document.createElement("option");
+        option.value = "";
+        option.textContent = "Nu există date";
+        select.appendChild(option);
+        select.disabled = true;
+        return;
+    }
+
+    frameworks.forEach(function(framework) {
+        const option = document.createElement("option");
+        option.value = framework;
+        option.textContent = framework;
+        select.appendChild(option);
+    });
+
+    select.value = frameworks[0];
+}
+
+function getFilteredRows(selectedFramework) {
+    return analysisRows.filter(function(row) {
+        return row.framework_name === selectedFramework;
+    });
+}
+
+function getSpeedValue(row) {
+    const cryptoValue = toNumber(row.avg_crypto_ms_per_byte);
+
+    if (cryptoValue <= 0) {
+        return 0;
+    }
+
+    const bytesPerSecond = 1000 / cryptoValue;
+    const mbPerSecond = bytesPerSecond / (1024 * 1024);
+
+    return Number(mbPerSecond.toFixed(6));
+}
+
+function getCryptoValue(row) {
+    return toNumber(row.avg_crypto_ms_per_byte);
+}
+
+function getTotalValue(row) {
+    return toNumber(row.avg_total_ms_per_byte);
+}
+
+function getOverheadValue(row) {
+    const cryptoValue = toNumber(row.avg_crypto_ms_per_byte);
+    const totalValue = toNumber(row.avg_total_ms_per_byte);
+    const difference = totalValue - cryptoValue;
+
+    if (difference < 0) {
+        return 0;
+    }
+
+    return Number(difference.toFixed(9));
+}
+
+function getOverheadPercentValue(row) {
+    const cryptoValue = toNumber(row.avg_crypto_ms_per_byte);
+    const totalValue = toNumber(row.avg_total_ms_per_byte);
+    const difference = totalValue - cryptoValue;
+
+    if (cryptoValue <= 0 || difference <= 0) {
+        return 0;
+    }
+
+    return Number(((difference / cryptoValue) * 100).toFixed(3));
+}
+
+function getMemoryValue(row) {
+    return toNumber(row.avg_memory_kb);
+}
+
+function createOrUpdateBarChart(config) {
+    const select = document.getElementById(config.selectId);
+
+    if (!select || !select.value) {
+        return;
+    }
+
+    const selectedFramework = select.value;
+    const rows = getFilteredRows(selectedFramework);
+
+    const labels = rows.map(function(row) {
+        return rowLabel(row);
+    });
+
+    const values = rows.map(function(row) {
+        return config.valueGetter(row);
+    });
+
+    const canvas = document.getElementById(config.canvasId);
+
+    if (!canvas) {
+        return;
+    }
+
+    if (chartInstances[config.canvasId]) {
+        chartInstances[config.canvasId].destroy();
+    }
+
+    chartInstances[config.canvasId] = new Chart(canvas, {
+        type: "bar",
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: config.datasetLabel + " - " + selectedFramework,
+                    data: values
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    display: true
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return config.tooltipLabel + ": " + context.formattedValue + " " + config.unit;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    ticks: {
+                        maxRotation: 30,
+                        minRotation: 20
+                    }
+                },
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: config.unit
+                    }
+                }
+            }
+        }
+    });
+}
+
+const chartConfigs = [
+    {
+        canvasId: "speedChart",
+        selectId: "speedFrameworkSelect",
+        datasetLabel: "MB / secundă",
+        tooltipLabel: "Viteză",
+        unit: "MB/s",
+        valueGetter: getSpeedValue
+    },
+    {
+        canvasId: "cryptoTimeChart",
+        selectId: "cryptoFrameworkSelect",
+        datasetLabel: "Timp de execuție criptografică",
+        tooltipLabel: "Timp criptografic",
+        unit: "ms/octet",
+        valueGetter: getCryptoValue
+    },
+    {
+        canvasId: "totalTimeChart",
+        selectId: "totalFrameworkSelect",
+        datasetLabel: "Timp total al operației",
+        tooltipLabel: "Timp total",
+        unit: "ms/octet",
+        valueGetter: getTotalValue
+    },
+    {
+        canvasId: "overheadChart",
+        selectId: "overheadFrameworkSelect",
+        datasetLabel: "Cost suplimentar aplicație",
+        tooltipLabel: "Cost suplimentar",
+        unit: "ms/octet",
+        valueGetter: getOverheadValue
+    },
+    {
+        canvasId: "overheadPercentChart",
+        selectId: "overheadPercentFrameworkSelect",
+        datasetLabel: "Cost suplimentar",
+        tooltipLabel: "Cost suplimentar",
+        unit: "%",
+        valueGetter: getOverheadPercentValue
+    },
+    {
+        canvasId: "memoryChart",
+        selectId: "memoryFrameworkSelect",
+        datasetLabel: "Memorie medie",
+        tooltipLabel: "Memorie",
+        unit: "KB",
+        valueGetter: getMemoryValue
+    }
+];
+
+chartConfigs.forEach(function(config) {
+    populateFrameworkSelect(config.selectId);
+
+    const select = document.getElementById(config.selectId);
+
+    if (select) {
+        select.addEventListener("change", function() {
+            createOrUpdateBarChart(config);
+        });
+    }
+
+    createOrUpdateBarChart(config);
+});
+</script>
+{% endblock %}

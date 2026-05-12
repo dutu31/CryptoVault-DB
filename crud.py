@@ -1,506 +1,569 @@
 import math
 
 from sqlalchemy import func
-from sqlalchemy.orm import Session
 
 import models
 
 
-DEFAULT_PAGE = 1
-DEFAULT_PER_PAGE = 5
-MAX_PER_PAGE = 100
+class Pagination:
+    def __init__(self, page, per_page, total):
+        self.total = total
+        self.per_page = per_page
+        self.pages = max(1, math.ceil(total / per_page)) if per_page else 1
+        self.page = max(1, min(page, self.pages))
+        self.has_prev = self.page > 1
+        self.has_next = self.page < self.pages
+        self.prev_page = self.page - 1 if self.has_prev else 1
+        self.next_page = self.page + 1 if self.has_next else self.pages
 
 
-def normalize_page(value):
-    try:
-        value = int(value)
-    except (TypeError, ValueError):
-        value = DEFAULT_PAGE
-
-    if value < 1:
-        value = DEFAULT_PAGE
-
-    return value
-
-
-def normalize_per_page(value):
-    try:
-        value = int(value)
-    except (TypeError, ValueError):
-        value = DEFAULT_PER_PAGE
-
-    if value < 1:
-        value = DEFAULT_PER_PAGE
-
-    if value > MAX_PER_PAGE:
-        value = MAX_PER_PAGE
-
-    return value
-
-
-def paginate_query(query, page=1, per_page=5):
-    page = normalize_page(page)
-    per_page = normalize_per_page(per_page)
-
+def paginate_query(query, page=1, per_page=10):
     total = query.count()
-    pages = math.ceil(total / per_page) if total > 0 else 1
+    pagination = Pagination(page, per_page, total)
 
-    if page > pages:
-        page = pages
+    items = (
+        query
+        .limit(per_page)
+        .offset((pagination.page - 1) * per_page)
+        .all()
+    )
 
-    items = query.offset((page - 1) * per_page).limit(per_page).all()
+    return items, pagination
 
+
+def normalize_operation(operation):
+    if operation is None:
+        return "-"
+
+    value = str(operation).strip().lower()
+
+    if value == "encrypt":
+        return "Criptare"
+
+    if value == "decrypt":
+        return "Decriptare"
+
+    return operation
+
+
+def safe_round(value, digits=3):
+    if value is None:
+        return None
+
+    return round(float(value), digits)
+
+
+def get_stats(db):
     return {
-        "items": items,
-        "page": page,
-        "per_page": per_page,
-        "total": total,
-        "pages": pages,
-        "has_prev": page > 1,
-        "has_next": page < pages,
-        "prev_page": page - 1 if page > 1 else 1,
-        "next_page": page + 1 if page < pages else pages,
+        "algorithms": db.query(models.Algorithm).count(),
+        "crypto_keys": db.query(models.Key).count(),
+        "frameworks": db.query(models.Framework).count(),
+        "files": db.query(models.File).count(),
+        "performances": db.query(models.Performance).count(),
     }
 
 
-def create_algorithm(db: Session, name: str, algo_type: str):
-    new_algo = models.Algorithm(name=name, type=algo_type)
-    db.add(new_algo)
-    db.commit()
-    db.refresh(new_algo)
-    return new_algo
+def get_all_algorithms(db):
+    return db.query(models.Algorithm).order_by(models.Algorithm.name.asc()).all()
 
 
-def get_all_algorithms(db: Session):
-    return db.query(models.Algorithm).order_by(models.Algorithm.id).all()
-
-
-def get_algorithms_paginated(db: Session, page=1, per_page=5):
-    query = db.query(models.Algorithm).order_by(models.Algorithm.id)
+def get_algorithms_paginated(db, page=1, per_page=10):
+    query = db.query(models.Algorithm).order_by(models.Algorithm.name.asc())
     return paginate_query(query, page, per_page)
 
 
-def count_algorithms(db: Session):
-    return db.query(models.Algorithm).count()
+def get_algorithm(db, algorithm_id):
+    return db.query(models.Algorithm).filter(models.Algorithm.id == algorithm_id).first()
 
 
-def get_algorithm_by_id(db: Session, algo_id: int):
-    return db.query(models.Algorithm).filter(models.Algorithm.id == algo_id).first()
+def save_algorithm(db, name, algorithm_type, algorithm_id=None):
+    name = name.strip()
+    algorithm_type = algorithm_type.strip()
 
+    duplicate_query = db.query(models.Algorithm).filter(func.lower(models.Algorithm.name) == name.lower())
 
-def get_algorithm_by_name(db: Session, name: str):
-    return (
-        db.query(models.Algorithm)
-        .filter(func.lower(models.Algorithm.name) == name.strip().lower())
-        .first()
-    )
+    if algorithm_id:
+        duplicate_query = duplicate_query.filter(models.Algorithm.id != algorithm_id)
 
+    duplicate = duplicate_query.first()
 
-def update_algorithm(db: Session, algo_id: int, name: str, algo_type: str):
-    db_algo = get_algorithm_by_id(db, algo_id)
+    if duplicate:
+        raise ValueError("Există deja un algoritm cu acest nume.")
 
-    if db_algo:
-        db_algo.name = name
-        db_algo.type = algo_type
-        db.commit()
-        db.refresh(db_algo)
+    if algorithm_id:
+        algorithm = get_algorithm(db, algorithm_id)
 
-    return db_algo
+        if algorithm is None:
+            raise ValueError("Algoritmul nu există.")
 
+        algorithm.name = name
+        algorithm.type = algorithm_type
+    else:
+        algorithm = models.Algorithm(name=name, type=algorithm_type)
+        db.add(algorithm)
 
-def delete_algorithm(db: Session, algo_id: int):
-    db_algo = get_algorithm_by_id(db, algo_id)
-
-    if db_algo:
-        db.delete(db_algo)
-        db.commit()
-        return True
-
-    return False
-
-
-def create_key(db: Session, algorithm_id: int, key_value: str):
-    new_key = models.Key(algorithm_id=algorithm_id, key_value=key_value)
-    db.add(new_key)
     db.commit()
-    db.refresh(new_key)
-    return new_key
+    db.refresh(algorithm)
+
+    return algorithm
 
 
-def get_all_keys(db: Session):
-    return db.query(models.Key).order_by(models.Key.id).all()
+def delete_algorithm(db, algorithm_id):
+    algorithm = get_algorithm(db, algorithm_id)
+
+    if algorithm is None:
+        raise ValueError("Algoritmul nu există.")
+
+    db.delete(algorithm)
+    db.commit()
 
 
-def get_keys_paginated(db: Session, page=1, per_page=5):
-    query = db.query(models.Key).order_by(models.Key.id.desc())
+def get_all_frameworks(db):
+    return db.query(models.Framework).order_by(models.Framework.name.asc()).all()
+
+
+def get_frameworks_paginated(db, page=1, per_page=10):
+    query = db.query(models.Framework).order_by(models.Framework.name.asc())
     return paginate_query(query, page, per_page)
 
 
-def count_keys(db: Session):
-    return db.query(models.Key).count()
-
-
-def get_key_by_id(db: Session, key_id: int):
-    return db.query(models.Key).filter(models.Key.id == key_id).first()
-
-
-def get_key_by_algorithm_and_value(db: Session, algorithm_id: int, key_value: str):
-    return (
-        db.query(models.Key)
-        .filter(
-            models.Key.algorithm_id == algorithm_id,
-            models.Key.key_value == key_value.strip()
-        )
-        .first()
-    )
-
-
-def delete_key(db: Session, key_id: int):
-    db_key = get_key_by_id(db, key_id)
-
-    if db_key:
-        db.delete(db_key)
-        db.commit()
-        return True
-
-    return False
-
-
-def create_framework(db: Session, name: str):
-    new_framework = models.Framework(name=name)
-    db.add(new_framework)
-    db.commit()
-    db.refresh(new_framework)
-    return new_framework
-
-
-def get_all_frameworks(db: Session):
-    return db.query(models.Framework).order_by(models.Framework.id).all()
-
-
-def get_frameworks_paginated(db: Session, page=1, per_page=5):
-    query = db.query(models.Framework).order_by(models.Framework.id)
-    return paginate_query(query, page, per_page)
-
-
-def count_frameworks(db: Session):
-    return db.query(models.Framework).count()
-
-
-def get_framework_by_id(db: Session, framework_id: int):
+def get_framework(db, framework_id):
     return db.query(models.Framework).filter(models.Framework.id == framework_id).first()
 
 
-def get_framework_by_name(db: Session, name: str):
-    return (
-        db.query(models.Framework)
-        .filter(func.lower(models.Framework.name) == name.strip().lower())
-        .first()
-    )
+def save_framework(db, name, framework_id=None):
+    name = name.strip()
 
+    duplicate_query = db.query(models.Framework).filter(func.lower(models.Framework.name) == name.lower())
 
-def update_framework(db: Session, framework_id: int, name: str):
-    db_framework = get_framework_by_id(db, framework_id)
+    if framework_id:
+        duplicate_query = duplicate_query.filter(models.Framework.id != framework_id)
 
-    if db_framework:
-        db_framework.name = name
-        db.commit()
-        db.refresh(db_framework)
+    duplicate = duplicate_query.first()
 
-    return db_framework
+    if duplicate:
+        raise ValueError("Există deja un framework cu acest nume.")
 
+    if framework_id:
+        framework = get_framework(db, framework_id)
 
-def delete_framework(db: Session, framework_id: int):
-    db_framework = get_framework_by_id(db, framework_id)
+        if framework is None:
+            raise ValueError("Framework-ul nu există.")
 
-    if db_framework:
-        db.delete(db_framework)
-        db.commit()
-        return True
+        framework.name = name
+    else:
+        framework = models.Framework(name=name)
+        db.add(framework)
 
-    return False
-
-
-def create_file(
-    db: Session,
-    original_name: str,
-    stored_name: str = None,
-    original_path: str = None,
-    status: str = "Ne-criptat",
-    hash_value: str = None,
-    size_bytes: int = None
-):
-    new_file = models.File(
-        original_name=original_name,
-        stored_name=stored_name,
-        original_path=original_path,
-        status=status,
-        hash_value=hash_value,
-        size_bytes=size_bytes,
-    )
-
-    db.add(new_file)
     db.commit()
-    db.refresh(new_file)
-    return new_file
+    db.refresh(framework)
+
+    return framework
 
 
-def get_all_files(db: Session):
+def delete_framework(db, framework_id):
+    framework = get_framework(db, framework_id)
+
+    if framework is None:
+        raise ValueError("Framework-ul nu există.")
+
+    db.delete(framework)
+    db.commit()
+
+
+def get_all_files(db):
     return db.query(models.File).order_by(models.File.id.desc()).all()
 
 
-def get_files_paginated(db: Session, page=1, per_page=5):
+def get_files_paginated(db, page=1, per_page=10):
     query = db.query(models.File).order_by(models.File.id.desc())
     return paginate_query(query, page, per_page)
 
 
-def count_files(db: Session):
-    return db.query(models.File).count()
-
-
-def get_file_by_id(db: Session, file_id: int):
+def get_file(db, file_id):
     return db.query(models.File).filter(models.File.id == file_id).first()
 
 
-def get_file_by_original_name(db: Session, original_name: str):
-    return (
-        db.query(models.File)
-        .filter(func.lower(models.File.original_name) == original_name.strip().lower())
-        .first()
+def create_file(db, original_name, stored_name, original_path, hash_value, size_bytes):
+    file_obj = models.File(
+        original_name=original_name,
+        stored_name=stored_name,
+        original_path=original_path,
+        status="Ne-criptat",
+        hash_value=hash_value,
+        size_bytes=size_bytes,
     )
 
+    db.add(file_obj)
+    db.commit()
+    db.refresh(file_obj)
 
-def update_file_after_encrypt(
-    db: Session,
-    file_id: int,
-    encrypted_name: str,
-    encrypted_path: str,
-    encrypted_hash: str
-):
-    db_file = get_file_by_id(db, file_id)
-
-    if db_file:
-        db_file.encrypted_name = encrypted_name
-        db_file.encrypted_path = encrypted_path
-        db_file.encrypted_hash = encrypted_hash
-        db_file.status = "Criptat"
-        db.commit()
-        db.refresh(db_file)
-
-    return db_file
+    return file_obj
 
 
-def update_file_after_decrypt(
-    db: Session,
-    file_id: int,
-    decrypted_name: str,
-    decrypted_path: str,
-    decrypted_hash: str
-):
-    db_file = get_file_by_id(db, file_id)
+def update_file_after_operation(db, file_id, operation, output_name, output_path, output_hash, output_size):
+    file_obj = get_file(db, file_id)
 
-    if db_file:
-        db_file.decrypted_name = decrypted_name
-        db_file.decrypted_path = decrypted_path
-        db_file.decrypted_hash = decrypted_hash
-        db_file.status = "Decriptat"
-        db.commit()
-        db.refresh(db_file)
+    if file_obj is None:
+        raise ValueError("Fișierul nu există.")
 
-    return db_file
+    if operation == "encrypt":
+        file_obj.encrypted_name = output_name
+        file_obj.encrypted_path = output_path
+        file_obj.encrypted_hash = output_hash
+        file_obj.status = "Criptat"
+    elif operation == "decrypt":
+        file_obj.decrypted_name = output_name
+        file_obj.decrypted_path = output_path
+        file_obj.decrypted_hash = output_hash
+        file_obj.status = "Decriptat"
+
+    db.commit()
+    db.refresh(file_obj)
+
+    return file_obj
 
 
-def delete_file(db: Session, file_id: int):
-    db_file = get_file_by_id(db, file_id)
+def delete_file(db, file_id):
+    file_obj = get_file(db, file_id)
 
-    if db_file:
-        db.delete(db_file)
-        db.commit()
-        return True
+    if file_obj is None:
+        raise ValueError("Fișierul nu există.")
 
-    return False
+    db.delete(file_obj)
+    db.commit()
+
+
+def get_all_keys(db):
+    return db.query(models.Key).order_by(models.Key.id.desc()).all()
+
+
+def get_keys_paginated(db, page=1, per_page=10):
+    query = db.query(models.Key).order_by(models.Key.id.desc())
+    return paginate_query(query, page, per_page)
+
+
+def get_key(db, key_id):
+    return db.query(models.Key).filter(models.Key.id == key_id).first()
+
+
+def create_key(db, algorithm_id, key_value):
+    algorithm = get_algorithm(db, algorithm_id)
+
+    if algorithm is None:
+        raise ValueError("Algoritmul selectat nu există.")
+
+    key = models.Key(
+        algorithm_id=algorithm_id,
+        key_value=key_value,
+    )
+
+    db.add(key)
+    db.commit()
+    db.refresh(key)
+
+    return key
+
+
+def delete_key(db, key_id):
+    key = get_key(db, key_id)
+
+    if key is None:
+        raise ValueError("Cheia nu există.")
+
+    db.delete(key)
+    db.commit()
+
+
+def get_performances_paginated(db, page=1, per_page=5):
+    query = db.query(models.Performance).order_by(models.Performance.id.desc())
+    return paginate_query(query, page, per_page)
+
+
+def get_performance(db, performance_id):
+    return db.query(models.Performance).filter(models.Performance.id == performance_id).first()
 
 
 def create_performance(
-    db: Session,
-    file_id: int,
-    algorithm_id: int,
-    framework_id: int,
-    operation: str,
-    time_taken_ms: float = None,
-    memory_used_kb: float = None,
-    key_id: int = None,
-    file_size_bytes: int = None,
-    result_hash: str = None,
-    runs_count: int = 1,
-    avg_time_ms: float = None,
-    min_time_ms: float = None,
-    max_time_ms: float = None,
-    total_time_ms: float = None,
-    avg_total_time_ms: float = None,
-    min_total_time_ms: float = None,
-    max_total_time_ms: float = None,
-    avg_memory_kb: float = None,
-    min_memory_kb: float = None,
-    max_memory_kb: float = None
+    db,
+    file_id,
+    algorithm_id,
+    framework_id,
+    key_id,
+    operation,
+    time_taken_ms,
+    memory_used_kb,
+    total_time_ms,
+    runs_count,
+    avg_time_ms,
+    min_time_ms,
+    max_time_ms,
+    avg_total_time_ms,
+    min_total_time_ms,
+    max_total_time_ms,
+    avg_memory_kb,
+    min_memory_kb,
+    max_memory_kb,
+    input_size_bytes,
+    file_size_bytes,
+    result_hash,
 ):
-    effective_time = time_taken_ms
-    effective_total_time = total_time_ms if total_time_ms is not None else effective_time
-
-    new_performance = models.Performance(
+    performance = models.Performance(
         file_id=file_id,
         algorithm_id=algorithm_id,
         framework_id=framework_id,
         key_id=key_id,
         operation=operation,
-
-        time_taken_ms=effective_time,
+        time_taken_ms=time_taken_ms,
         memory_used_kb=memory_used_kb,
-        total_time_ms=effective_total_time,
-
+        total_time_ms=total_time_ms,
         runs_count=runs_count,
-
-        avg_time_ms=avg_time_ms if avg_time_ms is not None else effective_time,
-        min_time_ms=min_time_ms if min_time_ms is not None else effective_time,
-        max_time_ms=max_time_ms if max_time_ms is not None else effective_time,
-
-        avg_total_time_ms=avg_total_time_ms if avg_total_time_ms is not None else effective_total_time,
-        min_total_time_ms=min_total_time_ms if min_total_time_ms is not None else effective_total_time,
-        max_total_time_ms=max_total_time_ms if max_total_time_ms is not None else effective_total_time,
-
-        avg_memory_kb=avg_memory_kb if avg_memory_kb is not None else memory_used_kb,
-        min_memory_kb=min_memory_kb if min_memory_kb is not None else memory_used_kb,
-        max_memory_kb=max_memory_kb if max_memory_kb is not None else memory_used_kb,
-
+        avg_time_ms=avg_time_ms,
+        min_time_ms=min_time_ms,
+        max_time_ms=max_time_ms,
+        avg_total_time_ms=avg_total_time_ms,
+        min_total_time_ms=min_total_time_ms,
+        max_total_time_ms=max_total_time_ms,
+        avg_memory_kb=avg_memory_kb,
+        min_memory_kb=min_memory_kb,
+        max_memory_kb=max_memory_kb,
+        input_size_bytes=input_size_bytes,
         file_size_bytes=file_size_bytes,
         result_hash=result_hash,
     )
 
-    db.add(new_performance)
+    db.add(performance)
     db.commit()
-    db.refresh(new_performance)
-    return new_performance
+    db.refresh(performance)
+
+    return performance
 
 
-def get_all_performances(db: Session):
-    return db.query(models.Performance).order_by(models.Performance.id.desc()).all()
+def delete_performance(db, performance_id):
+    performance = get_performance(db, performance_id)
+
+    if performance is None:
+        raise ValueError("Înregistrarea de performanță nu există.")
+
+    db.delete(performance)
+    db.commit()
 
 
-def get_performances_paginated(db: Session, page=1, per_page=5):
-    query = db.query(models.Performance).order_by(models.Performance.id.desc())
-    return paginate_query(query, page, per_page)
+def get_performance_summary(db):
+    performances = db.query(models.Performance).all()
+    groups = {}
 
+    for performance in performances:
+        algorithm_name = performance.algorithm.name if performance.algorithm else "-"
+        framework_name = performance.framework.name if performance.framework else "-"
+        operation = normalize_operation(performance.operation)
 
-def count_performances(db: Session):
-    return db.query(models.Performance).count()
+        key = (algorithm_name, framework_name, operation)
 
+        if key not in groups:
+            groups[key] = {
+                "algorithm_name": algorithm_name,
+                "framework_name": framework_name,
+                "operation": operation,
+                "records_count": 0,
+                "runs_total": 0,
+                "time_sum": 0.0,
+                "total_time_sum": 0.0,
+                "memory_sum": 0.0,
+                "min_time_ms": None,
+                "max_time_ms": None,
+                "min_total_time_ms": None,
+                "max_total_time_ms": None,
+            }
 
-def get_performance_by_id(db: Session, performance_id: int):
-    return db.query(models.Performance).filter(models.Performance.id == performance_id).first()
+        runs_count = performance.runs_count or 1
 
+        avg_time = performance.avg_time_ms
+        if avg_time is None:
+            avg_time = performance.time_taken_ms
 
-def delete_performance(db: Session, performance_id: int):
-    db_performance = get_performance_by_id(db, performance_id)
+        min_time = performance.min_time_ms
+        if min_time is None:
+            min_time = performance.time_taken_ms
 
-    if db_performance:
-        db.delete(db_performance)
-        db.commit()
-        return True
+        max_time = performance.max_time_ms
+        if max_time is None:
+            max_time = performance.time_taken_ms
 
-    return False
+        avg_total_time = performance.avg_total_time_ms
+        if avg_total_time is None:
+            avg_total_time = performance.total_time_ms
 
+        if avg_total_time is None:
+            avg_total_time = avg_time
 
-def get_performance_summary(db: Session):
-    avg_time_expr = func.coalesce(
-        models.Performance.avg_time_ms,
-        models.Performance.time_taken_ms
-    )
+        min_total_time = performance.min_total_time_ms
+        if min_total_time is None:
+            min_total_time = performance.total_time_ms
 
-    min_time_expr = func.coalesce(
-        models.Performance.min_time_ms,
-        models.Performance.time_taken_ms
-    )
+        if min_total_time is None:
+            min_total_time = min_time
 
-    max_time_expr = func.coalesce(
-        models.Performance.max_time_ms,
-        models.Performance.time_taken_ms
-    )
+        max_total_time = performance.max_total_time_ms
+        if max_total_time is None:
+            max_total_time = performance.total_time_ms
 
-    avg_total_expr = func.coalesce(
-        models.Performance.avg_total_time_ms,
-        models.Performance.total_time_ms,
-        avg_time_expr
-    )
+        if max_total_time is None:
+            max_total_time = max_time
 
-    min_total_expr = func.coalesce(
-        models.Performance.min_total_time_ms,
-        models.Performance.total_time_ms,
-        min_time_expr
-    )
+        avg_memory = performance.avg_memory_kb
+        if avg_memory is None:
+            avg_memory = performance.memory_used_kb
 
-    max_total_expr = func.coalesce(
-        models.Performance.max_total_time_ms,
-        models.Performance.total_time_ms,
-        max_time_expr
-    )
+        group = groups[key]
+        group["records_count"] += 1
+        group["runs_total"] += runs_count
 
-    avg_memory_expr = func.coalesce(
-        models.Performance.avg_memory_kb,
-        models.Performance.memory_used_kb
-    )
+        if avg_time is not None:
+            group["time_sum"] += float(avg_time) * runs_count
 
-    rows = (
-        db.query(
-            models.Algorithm.name.label("algorithm_name"),
-            models.Framework.name.label("framework_name"),
-            models.Performance.operation.label("operation"),
-            func.count(models.Performance.id).label("records_count"),
-            func.sum(models.Performance.runs_count).label("runs_total"),
+        if avg_total_time is not None:
+            group["total_time_sum"] += float(avg_total_time) * runs_count
 
-            func.avg(avg_time_expr).label("avg_time_ms"),
-            func.min(min_time_expr).label("min_time_ms"),
-            func.max(max_time_expr).label("max_time_ms"),
+        if avg_memory is not None:
+            group["memory_sum"] += float(avg_memory) * runs_count
 
-            func.avg(avg_total_expr).label("avg_total_time_ms"),
-            func.min(min_total_expr).label("min_total_time_ms"),
-            func.max(max_total_expr).label("max_total_time_ms"),
+        if min_time is not None:
+            group["min_time_ms"] = float(min_time) if group["min_time_ms"] is None else min(group["min_time_ms"], float(min_time))
 
-            func.avg(avg_memory_expr).label("avg_memory_kb"),
-        )
-        .join(models.Algorithm, models.Performance.algorithm_id == models.Algorithm.id)
-        .join(models.Framework, models.Performance.framework_id == models.Framework.id)
-        .group_by(
-            models.Algorithm.name,
-            models.Framework.name,
-            models.Performance.operation
-        )
-        .order_by(
-            models.Algorithm.name,
-            models.Framework.name,
-            models.Performance.operation
-        )
-        .all()
-    )
+        if max_time is not None:
+            group["max_time_ms"] = float(max_time) if group["max_time_ms"] is None else max(group["max_time_ms"], float(max_time))
 
-    summary = []
+        if min_total_time is not None:
+            group["min_total_time_ms"] = float(min_total_time) if group["min_total_time_ms"] is None else min(group["min_total_time_ms"], float(min_total_time))
 
-    for row in rows:
-        summary.append({
-            "algorithm_name": row.algorithm_name,
-            "framework_name": row.framework_name,
-            "operation": row.operation,
-            "records_count": row.records_count or 0,
-            "runs_total": row.runs_total or 0,
+        if max_total_time is not None:
+            group["max_total_time_ms"] = float(max_total_time) if group["max_total_time_ms"] is None else max(group["max_total_time_ms"], float(max_total_time))
 
-            "avg_time_ms": round(row.avg_time_ms or 0, 3),
-            "min_time_ms": round(row.min_time_ms or 0, 3),
-            "max_time_ms": round(row.max_time_ms or 0, 3),
+    rows = []
 
-            "avg_total_time_ms": round(row.avg_total_time_ms or 0, 3),
-            "min_total_time_ms": round(row.min_total_time_ms or 0, 3),
-            "max_total_time_ms": round(row.max_total_time_ms or 0, 3),
+    for group in groups.values():
+        runs_total = group["runs_total"] if group["runs_total"] else 1
 
-            "avg_memory_kb": round(row.avg_memory_kb or 0, 3),
+        rows.append({
+            "algorithm_name": group["algorithm_name"],
+            "framework_name": group["framework_name"],
+            "operation": group["operation"],
+            "records_count": group["records_count"],
+            "runs_total": group["runs_total"],
+            "avg_time_ms": safe_round(group["time_sum"] / runs_total),
+            "min_time_ms": safe_round(group["min_time_ms"]),
+            "max_time_ms": safe_round(group["max_time_ms"]),
+            "avg_total_time_ms": safe_round(group["total_time_sum"] / runs_total),
+            "min_total_time_ms": safe_round(group["min_total_time_ms"]),
+            "max_total_time_ms": safe_round(group["max_total_time_ms"]),
+            "avg_memory_kb": safe_round(group["memory_sum"] / runs_total),
         })
 
-    return summary
+    rows.sort(key=lambda item: (item["algorithm_name"], item["framework_name"], item["operation"]))
+
+    return rows
+
+
+def get_performance_analysis(db):
+    performances = db.query(models.Performance).all()
+    groups = {}
+
+    for performance in performances:
+        algorithm_name = performance.algorithm.name if performance.algorithm else "-"
+        framework_name = performance.framework.name if performance.framework else "-"
+        operation = normalize_operation(performance.operation)
+
+        input_size = performance.input_size_bytes
+
+        if input_size is None:
+            input_size = performance.file_size_bytes
+
+        if input_size is None and performance.file is not None:
+            input_size = performance.file.size_bytes
+
+        if input_size is None or input_size <= 0:
+            continue
+
+        avg_time = performance.avg_time_ms
+        if avg_time is None:
+            avg_time = performance.time_taken_ms
+
+        avg_total_time = performance.avg_total_time_ms
+        if avg_total_time is None:
+            avg_total_time = performance.total_time_ms
+
+        if avg_total_time is None:
+            avg_total_time = avg_time
+
+        avg_memory = performance.avg_memory_kb
+        if avg_memory is None:
+            avg_memory = performance.memory_used_kb
+
+        if avg_time is None or avg_total_time is None:
+            continue
+
+        crypto_ms_per_byte = float(avg_time) / float(input_size)
+        total_ms_per_byte = float(avg_total_time) / float(input_size)
+
+        runs_count = performance.runs_count or 1
+        key = (algorithm_name, framework_name, operation)
+
+        if key not in groups:
+            groups[key] = {
+                "algorithm_name": algorithm_name,
+                "framework_name": framework_name,
+                "operation": operation,
+                "records_count": 0,
+                "runs_total": 0,
+                "input_bytes_total": 0,
+                "crypto_ms_sum": 0.0,
+                "total_ms_sum": 0.0,
+                "memory_sum": 0.0,
+                "min_crypto_ms_per_byte": None,
+                "max_crypto_ms_per_byte": None,
+                "min_total_ms_per_byte": None,
+                "max_total_ms_per_byte": None,
+            }
+
+        group = groups[key]
+
+        group["records_count"] += 1
+        group["runs_total"] += runs_count
+        group["input_bytes_total"] += int(input_size) * runs_count
+        group["crypto_ms_sum"] += crypto_ms_per_byte * runs_count
+        group["total_ms_sum"] += total_ms_per_byte * runs_count
+
+        if avg_memory is not None:
+            group["memory_sum"] += float(avg_memory) * runs_count
+
+        group["min_crypto_ms_per_byte"] = crypto_ms_per_byte if group["min_crypto_ms_per_byte"] is None else min(group["min_crypto_ms_per_byte"], crypto_ms_per_byte)
+        group["max_crypto_ms_per_byte"] = crypto_ms_per_byte if group["max_crypto_ms_per_byte"] is None else max(group["max_crypto_ms_per_byte"], crypto_ms_per_byte)
+
+        group["min_total_ms_per_byte"] = total_ms_per_byte if group["min_total_ms_per_byte"] is None else min(group["min_total_ms_per_byte"], total_ms_per_byte)
+        group["max_total_ms_per_byte"] = total_ms_per_byte if group["max_total_ms_per_byte"] is None else max(group["max_total_ms_per_byte"], total_ms_per_byte)
+
+    rows = []
+
+    for group in groups.values():
+        runs_total = group["runs_total"] if group["runs_total"] else 1
+
+        rows.append({
+            "algorithm_name": group["algorithm_name"],
+            "framework_name": group["framework_name"],
+            "operation": group["operation"],
+            "records_count": group["records_count"],
+            "runs_total": group["runs_total"],
+            "input_bytes_total": group["input_bytes_total"],
+            "avg_crypto_ms_per_byte": safe_round(group["crypto_ms_sum"] / runs_total, 6),
+            "min_crypto_ms_per_byte": safe_round(group["min_crypto_ms_per_byte"], 6),
+            "max_crypto_ms_per_byte": safe_round(group["max_crypto_ms_per_byte"], 6),
+            "avg_total_ms_per_byte": safe_round(group["total_ms_sum"] / runs_total, 6),
+            "min_total_ms_per_byte": safe_round(group["min_total_ms_per_byte"], 6),
+            "max_total_ms_per_byte": safe_round(group["max_total_ms_per_byte"], 6),
+            "avg_memory_kb": safe_round(group["memory_sum"] / runs_total),
+        })
+
+    rows.sort(key=lambda item: (item["algorithm_name"], item["framework_name"], item["operation"]))
+
+    return rows
