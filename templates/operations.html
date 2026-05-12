@@ -7,18 +7,17 @@
             <span>Operații criptografice</span>
         </div>
     </div>
-    <div class="card-body p-4">
-        <p class="section-subtitle mb-4">Selectează fișierul, algoritmul, cheia și framework-ul pentru criptare sau decriptare.</p>
 
-        <div class="alert alert-info">
-            AES este recomandat pentru fișiere normale. RSA este inclus ca algoritm asimetric, dar criptarea RSA directă este potrivită doar pentru fișiere foarte mici.
-            Pentru OpenSSL se măsoară timpul comenzii externe după pornirea procesului, iar pentru Cryptography API se măsoară execuția funcției Python.
-        </div>
+    <div class="card-body p-4">
+        <p class="section-subtitle mb-4">
+            Selectează fișierul, algoritmul, cheia și framework-ul pentru criptare sau decriptare.
+        </p>
 
         <div class="row g-4">
             <div class="col-lg-6">
                 <div class="card form-card h-100">
                     <div class="card-header">Execută operație</div>
+
                     <div class="card-body">
                         {% if files and algorithms and keys and frameworks %}
                         <form action="{{ url_for('run_operation') }}" method="post">
@@ -52,7 +51,7 @@
                                     <option value="">Selectează mai întâi algoritmul</option>
                                     {% for key in keys %}
                                         <option value="{{ key.id }}" data-algorithm-id="{{ key.algorithm_id }}">
-                                            ID {{ key.id }} - {{ key.algorithm.name }}
+                                            {{ key.algorithm.name }} - creată la {{ key.created_at.strftime('%Y-%m-%d %H:%M') }}
                                         </option>
                                     {% endfor %}
                                 </select>
@@ -88,11 +87,39 @@
                                 </select>
                             </div>
 
-                            <button type="submit" class="btn btn-success w-100">Execută</button>
+                            <button type="submit" class="btn btn-success w-100">
+                                Execută
+                            </button>
                         </form>
                         {% else %}
-                            <div class="alert alert-warning mb-0">Ai nevoie de cel puțin un fișier, un algoritm, o cheie și un framework.</div>
+                            <div class="alert alert-warning mb-0">
+                                Ai nevoie de cel puțin un fișier, un algoritm, o cheie și un framework.
+                            </div>
                         {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-6">
+                <div class="card table-card h-100">
+                    <div class="card-header">Observații</div>
+
+                    <div class="card-body">
+                        <p class="small-muted">
+                            Timpul de execuție reprezintă durata apelului criptografic efectiv.
+                        </p>
+
+                        <p class="small-muted">
+                            Timpul total reprezintă durata operației complete executate de aplicație pentru framework-ul ales.
+                        </p>
+
+                        <p class="small-muted">
+                            Pentru OpenSSL, timpul total include și pregătirea/apelarea procesului extern prin subprocess.
+                        </p>
+
+                        <p class="small-muted mb-0">
+                            Pentru framework-urile Python, timpul total include apelul complet al funcției criptografice din aplicație.
+                        </p>
                     </div>
                 </div>
             </div>

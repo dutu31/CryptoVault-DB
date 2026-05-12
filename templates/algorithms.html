@@ -8,37 +8,65 @@
             <span class="badge bg-light text-dark">{{ pagination.total }} înregistrări</span>
         </div>
     </div>
+
     <div class="card-body p-4">
-        <p class="section-subtitle mb-4">Gestionarea algoritmilor criptografici disponibili în sistem.</p>
+        <p class="section-subtitle mb-4">
+            Gestionarea algoritmilor criptografici disponibili în sistem.
+        </p>
+
         <div class="row g-4">
             <div class="col-lg-4">
                 <div class="card form-card h-100">
                     <div class="card-header">
                         {{ "Editează algoritm" if edit_algorithm else "Adaugă algoritm" }}
                     </div>
+
                     <div class="card-body">
                         <form action="{{ url_for('save_algorithm') }}" method="post">
                             {% if edit_algorithm %}
                                 <input type="hidden" name="algorithm_id" value="{{ edit_algorithm.id }}">
                             {% endif %}
+
                             <div class="mb-3">
                                 <label class="form-label">Nume algoritm</label>
-                                <input type="text" name="name" class="form-control"
-                                       value="{{ edit_algorithm.name if edit_algorithm else '' }}" required>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Tip algoritm</label>
-                                <select name="type" class="form-select" required>
-                                    <option value="">Selectează tipul</option>
-                                    <option value="Simetric" {% if edit_algorithm and edit_algorithm.type == 'Simetric' %}selected{% endif %}>Simetric</option>
-                                    <option value="Asimetric" {% if edit_algorithm and edit_algorithm.type == 'Asimetric' %}selected{% endif %}>Asimetric</option>
+                                <select name="name" id="algorithmNameSelect" class="form-select" required>
+                                    <option value="">Selectează algoritmul</option>
+
+                                    <option value="AES-256-CBC" data-type="Simetric"
+                                            {% if edit_algorithm and edit_algorithm.name == 'AES-256-CBC' %}selected{% endif %}>
+                                        AES-256-CBC
+                                    </option>
+
+                                    <option value="RSA" data-type="Asimetric"
+                                            {% if edit_algorithm and edit_algorithm.name == 'RSA' %}selected{% endif %}>
+                                        RSA
+                                    </option>
+
+                                    {% if edit_algorithm and edit_algorithm.name not in ['AES-256-CBC', 'RSA'] %}
+                                        <option value="{{ edit_algorithm.name }}" data-type="{{ edit_algorithm.type }}" selected>
+                                            {{ edit_algorithm.name }}
+                                        </option>
+                                    {% endif %}
                                 </select>
                             </div>
+
+                            <input type="hidden" name="type" id="algorithmTypeInput"
+                                   value="{{ edit_algorithm.type if edit_algorithm else '' }}">
+
+                            <div class="mb-3">
+                                <label class="form-label">Tip algoritm</label>
+                                <input type="text" id="algorithmTypeDisplay" class="form-control"
+                                       value="{{ edit_algorithm.type if edit_algorithm else '' }}" readonly>
+                            </div>
+
                             <button type="submit" class="btn btn-success w-100">
                                 {{ "Actualizează" if edit_algorithm else "Adaugă" }}
                             </button>
+
                             {% if edit_algorithm %}
-                                <a href="{{ url_for('show_algorithms') }}" class="btn btn-secondary w-100 mt-2">Anulează</a>
+                                <a href="{{ url_for('show_algorithms') }}" class="btn btn-secondary w-100 mt-2">
+                                    Anulează
+                                </a>
                             {% endif %}
                         </form>
                     </div>
@@ -48,32 +76,45 @@
             <div class="col-lg-8">
                 <div class="card table-card h-100">
                     <div class="card-header">Lista algoritmi</div>
+
                     <div class="card-body">
                         <div class="table-responsive">
                             <table class="table table-hover align-middle">
                                 <thead>
                                     <tr>
-                                        <th>ID</th>
                                         <th>Nume</th>
                                         <th>Tip</th>
                                         <th class="text-end">Acțiuni</th>
                                     </tr>
                                 </thead>
+
                                 <tbody>
                                 {% for algo in algorithms %}
                                     <tr>
-                                        <td>{{ algo.id }}</td>
-                                        <td><strong>{{ algo.name }}</strong></td>
+                                        <td>
+                                            <strong>{{ algo.name }}</strong>
+                                        </td>
+
                                         <td>{{ algo.type }}</td>
+
                                         <td class="text-end">
-                                            <a href="{{ url_for('show_algorithms', edit_algorithm=algo.id) }}" class="btn btn-warning btn-sm btn-action">Editează</a>
-                                            <a href="{{ url_for('delete_algorithm', algo_id=algo.id) }}" class="btn btn-danger btn-sm btn-action"
-                                               onclick="return confirm('Sigur vrei să ștergi acest algoritm? Vor fi șterse și cheile/performanțele asociate.')">Șterge</a>
+                                            <a href="{{ url_for('show_algorithms', edit_algorithm=algo.id) }}"
+                                               class="btn btn-warning btn-sm btn-action">
+                                                Editează
+                                            </a>
+
+                                            <a href="{{ url_for('delete_algorithm', algo_id=algo.id) }}"
+                                               class="btn btn-danger btn-sm btn-action"
+                                               onclick="return confirm('Sigur vrei să ștergi acest algoritm? Vor fi șterse și cheile/performanțele asociate.')">
+                                                Șterge
+                                            </a>
                                         </td>
                                     </tr>
                                 {% else %}
                                     <tr>
-                                        <td colspan="4" class="text-center text-muted py-4">Nu există algoritmi în baza de date.</td>
+                                        <td colspan="3" class="text-center text-muted py-4">
+                                            Nu există algoritmi în baza de date.
+                                        </td>
                                     </tr>
                                 {% endfor %}
                                 </tbody>

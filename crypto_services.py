@@ -45,12 +45,16 @@ def output_file_name(original_name, prefix, suffix):
 
 def sha256_file(path):
     hash_obj = hashlib.sha256()
+
     with open(path, "rb") as file:
         while True:
             chunk = file.read(1024 * 1024)
+
             if not chunk:
                 break
+
             hash_obj.update(chunk)
+
     return hash_obj.hexdigest()
 
 
@@ -148,12 +152,16 @@ def measure_action(action):
     return round(time_ms, 3), round(memory_kb, 3)
 
 
-def build_benchmark_result(times, memories):
+def build_benchmark_result(times, memories, total_times):
     runs_count = len(times)
 
     avg_time_ms = sum(times) / runs_count
     min_time_ms = min(times)
     max_time_ms = max(times)
+
+    avg_total_time_ms = sum(total_times) / runs_count
+    min_total_time_ms = min(total_times)
+    max_total_time_ms = max(total_times)
 
     avg_memory_kb = sum(memories) / runs_count
     min_memory_kb = min(memories)
@@ -161,11 +169,18 @@ def build_benchmark_result(times, memories):
 
     return {
         "runs_count": runs_count,
+
         "time_taken_ms": round(avg_time_ms, 3),
-        "memory_used_kb": round(avg_memory_kb, 3),
         "avg_time_ms": round(avg_time_ms, 3),
         "min_time_ms": round(min_time_ms, 3),
         "max_time_ms": round(max_time_ms, 3),
+
+        "total_time_ms": round(avg_total_time_ms, 3),
+        "avg_total_time_ms": round(avg_total_time_ms, 3),
+        "min_total_time_ms": round(min_total_time_ms, 3),
+        "max_total_time_ms": round(max_total_time_ms, 3),
+
+        "memory_used_kb": round(avg_memory_kb, 3),
         "avg_memory_kb": round(avg_memory_kb, 3),
         "min_memory_kb": round(min_memory_kb, 3),
         "max_memory_kb": round(max_memory_kb, 3),
@@ -229,6 +244,41 @@ def aes_cryptography_decrypt(input_path, output_path, key_value):
 
     unpadder = symmetric_padding.PKCS7(128).unpadder()
     decrypted = unpadder.update(padded_decrypted) + unpadder.finalize()
+
+    Path(output_path).write_bytes(decrypted)
+
+
+def aes_pycryptodome_encrypt(input_path, output_path, key_value):
+    from Crypto.Cipher import AES
+    from Crypto.Random import get_random_bytes
+    from Crypto.Util.Padding import pad
+
+    key = aes_key_bytes(key_value)
+    iv = get_random_bytes(16)
+
+    data = Path(input_path).read_bytes()
+
+    cipher = AES.new(key, AES.MODE_CBC, iv)
+    encrypted = cipher.encrypt(pad(data, AES.block_size))
+
+    Path(output_path).write_bytes(iv + encrypted)
+
+
+def aes_pycryptodome_decrypt(input_path, output_path, key_value):
+    from Crypto.Cipher import AES
+    from Crypto.Util.Padding import unpad
+
+    key = aes_key_bytes(key_value)
+    data = Path(input_path).read_bytes()
+
+    if len(data) < 16:
+        raise RuntimeError("Fișierul criptat nu conține IV valid.")
+
+    iv = data[:16]
+    encrypted = data[16:]
+
+    cipher = AES.new(key, AES.MODE_CBC, iv)
+    decrypted = unpad(cipher.decrypt(encrypted), AES.block_size)
 
     Path(output_path).write_bytes(decrypted)
 
@@ -381,8 +431,49 @@ def rsa_cryptography_decrypt(input_path, output_path, key_value):
     Path(output_path).write_bytes(decrypted)
 
 
+def rsa_pycryptodome_encrypt(input_path, output_path, key_value):
+    from Crypto.Cipher import PKCS1_OAEP
+    from Crypto.Hash import SHA256
+    from Crypto.PublicKey import RSA
+
+    key_data = load_rsa_key_data(key_value)
+
+    public_key = RSA.import_key(key_data["public_key"])
+    data = Path(input_path).read_bytes()
+
+    max_size = public_key.size_in_bytes() - 2 * SHA256.digest_size - 2
+
+    if len(data) > max_size:
+        raise RuntimeError(f"Pentru RSA direct, fișierul trebuie să aibă cel mult {max_size} bytes.")
+
+    cipher = PKCS1_OAEP.new(public_key, hashAlgo=SHA256)
+    encrypted = cipher.encrypt(data)
+
+    Path(output_path).write_bytes(encrypted)
+
+
+def rsa_pycryptodome_decrypt(input_path, output_path, key_value):
+    from Crypto.Cipher import PKCS1_OAEP
+    from Crypto.Hash import SHA256
+    from Crypto.PublicKey import RSA
+
+    key_data = load_rsa_key_data(key_value)
+
+    private_key = RSA.import_key(key_data["private_key"])
+    data = Path(input_path).read_bytes()
+
+    cipher = PKCS1_OAEP.new(private_key, hashAlgo=SHA256)
+    decrypted = cipher.decrypt(data)
+
+    Path(output_path).write_bytes(decrypted)
+
+
 def is_cryptography_framework(framework_name):
     return framework_name in ["cryptography", "cryptography api"]
+
+
+def is_pycryptodome_framework(framework_name):
+    return framework_name == "pycryptodome"
 
 
 def execute_crypto_once(algorithm_name, framework_name, operation, input_path, output_path, key_value):
@@ -398,6 +489,12 @@ def execute_crypto_once(algorithm_name, framework_name, operation, input_path, o
     if "aes" in algorithm_name and is_cryptography_framework(framework_name) and operation == "decrypt":
         return measure_action(lambda: aes_cryptography_decrypt(input_path, output_path, key_value))
 
+    if "aes" in algorithm_name and is_pycryptodome_framework(framework_name) and operation == "encrypt":
+        return measure_action(lambda: aes_pycryptodome_encrypt(input_path, output_path, key_value))
+
+    if "aes" in algorithm_name and is_pycryptodome_framework(framework_name) and operation == "decrypt":
+        return measure_action(lambda: aes_pycryptodome_decrypt(input_path, output_path, key_value))
+
     if "rsa" in algorithm_name and framework_name == "openssl" and operation == "encrypt":
         return rsa_openssl_encrypt(input_path, output_path, key_value)
 
@@ -410,6 +507,12 @@ def execute_crypto_once(algorithm_name, framework_name, operation, input_path, o
     if "rsa" in algorithm_name and is_cryptography_framework(framework_name) and operation == "decrypt":
         return measure_action(lambda: rsa_cryptography_decrypt(input_path, output_path, key_value))
 
+    if "rsa" in algorithm_name and is_pycryptodome_framework(framework_name) and operation == "encrypt":
+        return measure_action(lambda: rsa_pycryptodome_encrypt(input_path, output_path, key_value))
+
+    if "rsa" in algorithm_name and is_pycryptodome_framework(framework_name) and operation == "decrypt":
+        return measure_action(lambda: rsa_pycryptodome_decrypt(input_path, output_path, key_value))
+
     raise RuntimeError("Combinația algoritm/framework/operație nu este suportată.")
 
 
@@ -421,8 +524,11 @@ def run_crypto_operation(algorithm_name, framework_name, operation, input_path, 
 
     times = []
     memories = []
+    total_times = []
 
     for i in range(runs):
+        total_start = time.perf_counter()
+
         time_ms, memory_kb = execute_crypto_once(
             algorithm_name,
             framework_name,
@@ -432,7 +538,11 @@ def run_crypto_operation(algorithm_name, framework_name, operation, input_path, 
             key_value
         )
 
+        total_end = time.perf_counter()
+        total_time_ms = (total_end - total_start) * 1000
+
         times.append(time_ms)
         memories.append(memory_kb)
+        total_times.append(round(total_time_ms, 3))
 
-    return build_benchmark_result(times, memories)
+    return build_benchmark_result(times, memories, total_times)

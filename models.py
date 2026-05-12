@@ -72,11 +72,17 @@ class Performance(Base):
 
     time_taken_ms = Column(Float, nullable=True)
     memory_used_kb = Column(Float, nullable=True)
+    total_time_ms = Column(Float, nullable=True)
 
     runs_count = Column(Integer, default=1, nullable=False)
+
     avg_time_ms = Column(Float, nullable=True)
     min_time_ms = Column(Float, nullable=True)
     max_time_ms = Column(Float, nullable=True)
+
+    avg_total_time_ms = Column(Float, nullable=True)
+    min_total_time_ms = Column(Float, nullable=True)
+    max_total_time_ms = Column(Float, nullable=True)
 
     avg_memory_kb = Column(Float, nullable=True)
     min_memory_kb = Column(Float, nullable=True)

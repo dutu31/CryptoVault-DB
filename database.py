@@ -39,9 +39,12 @@ def get_columns(table_name):
 
 def add_column_if_missing(table_name, column_name, definition):
     columns = get_columns(table_name)
+
     if column_name not in columns:
         with engine.begin() as connection:
-            connection.exec_driver_sql(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {definition}")
+            connection.exec_driver_sql(
+                f"ALTER TABLE {table_name} ADD COLUMN {column_name} {definition}"
+            )
 
 
 def migrate_database():
@@ -62,9 +65,16 @@ def migrate_database():
     add_column_if_missing("performances", "created_at", "DATETIME")
 
     add_column_if_missing("performances", "runs_count", "INTEGER DEFAULT 1")
+
     add_column_if_missing("performances", "avg_time_ms", "FLOAT")
     add_column_if_missing("performances", "min_time_ms", "FLOAT")
     add_column_if_missing("performances", "max_time_ms", "FLOAT")
+
+    add_column_if_missing("performances", "total_time_ms", "FLOAT")
+    add_column_if_missing("performances", "avg_total_time_ms", "FLOAT")
+    add_column_if_missing("performances", "min_total_time_ms", "FLOAT")
+    add_column_if_missing("performances", "max_total_time_ms", "FLOAT")
+
     add_column_if_missing("performances", "avg_memory_kb", "FLOAT")
     add_column_if_missing("performances", "min_memory_kb", "FLOAT")
     add_column_if_missing("performances", "max_memory_kb", "FLOAT")
@@ -73,6 +83,7 @@ def migrate_database():
         connection.exec_driver_sql(
             "UPDATE performances SET runs_count = 1 WHERE runs_count IS NULL"
         )
+
         connection.exec_driver_sql(
             "UPDATE performances SET avg_time_ms = time_taken_ms WHERE avg_time_ms IS NULL"
         )
@@ -82,6 +93,20 @@ def migrate_database():
         connection.exec_driver_sql(
             "UPDATE performances SET max_time_ms = time_taken_ms WHERE max_time_ms IS NULL"
         )
+
+        connection.exec_driver_sql(
+            "UPDATE performances SET total_time_ms = time_taken_ms WHERE total_time_ms IS NULL"
+        )
+        connection.exec_driver_sql(
+            "UPDATE performances SET avg_total_time_ms = total_time_ms WHERE avg_total_time_ms IS NULL"
+        )
+        connection.exec_driver_sql(
+            "UPDATE performances SET min_total_time_ms = total_time_ms WHERE min_total_time_ms IS NULL"
+        )
+        connection.exec_driver_sql(
+            "UPDATE performances SET max_total_time_ms = total_time_ms WHERE max_total_time_ms IS NULL"
+        )
+
         connection.exec_driver_sql(
             "UPDATE performances SET avg_memory_kb = memory_used_kb WHERE avg_memory_kb IS NULL"
         )
@@ -113,6 +138,7 @@ def seed_reference_data():
     import models
 
     db = get_session()
+
     try:
         default_algorithms = [
             ("AES-256-CBC", "Simetric"),
@@ -125,34 +151,25 @@ def seed_reference_data():
                 .filter(func.lower(models.Algorithm.name) == name.lower())
                 .first()
             )
+
             if existing is None:
                 db.add(models.Algorithm(name=name, type=algo_type))
 
-        openssl_framework = get_framework_case_insensitive(db, models, "OpenSSL")
-        if openssl_framework is None:
-            db.add(models.Framework(name="OpenSSL"))
+        default_frameworks = [
+            "OpenSSL",
+            "Cryptography API",
+            "PyCryptodome",
+        ]
 
-        cryptography_framework = get_framework_case_insensitive(db, models, "Cryptography API")
-        pycryptodome_framework = get_framework_case_insensitive(db, models, "PyCryptodome")
+        for framework_name in default_frameworks:
+            existing = get_framework_case_insensitive(db, models, framework_name)
 
-        if pycryptodome_framework is not None and cryptography_framework is None:
-            pycryptodome_framework.name = "Cryptography API"
-
-        elif pycryptodome_framework is not None and cryptography_framework is not None:
-            db.query(models.Performance).filter(
-                models.Performance.framework_id == pycryptodome_framework.id
-            ).update(
-                {"framework_id": cryptography_framework.id},
-                synchronize_session=False
-            )
-            db.delete(pycryptodome_framework)
-
-        cryptography_framework = get_framework_case_insensitive(db, models, "Cryptography API")
-        if cryptography_framework is None:
-            db.add(models.Framework(name="Cryptography API"))
-        else:
-            cryptography_framework.name = "Cryptography API"
+            if existing is None:
+                db.add(models.Framework(name=framework_name))
+            else:
+                existing.name = framework_name
 
         db.commit()
+
     finally:
         db.close()

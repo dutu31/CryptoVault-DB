@@ -16,7 +16,7 @@ def get_page():
 
 
 def get_per_page():
-    return crud.normalize_per_page(request.args.get("per_page", 25))
+    return crud.normalize_per_page(request.args.get("per_page"))
 
 
 def load_key_json(key_value):
@@ -93,6 +93,7 @@ crypto_services.ensure_data_directories()
 @app.route("/")
 def index():
     db = database.get_session()
+
     try:
         stats = {
             "algorithms": crud.count_algorithms(db),
@@ -103,6 +104,7 @@ def index():
         }
 
         return render_template("index.html", stats=stats)
+
     finally:
         db.close()
 
@@ -110,6 +112,7 @@ def index():
 @app.route("/algorithms")
 def show_algorithms():
     db = database.get_session()
+
     try:
         edit_algorithm_id = request.args.get("edit_algorithm", type=int)
         pagination = crud.get_algorithms_paginated(db, get_page(), get_per_page())
@@ -121,6 +124,7 @@ def show_algorithms():
             pagination=pagination,
             edit_algorithm=edit_algorithm
         )
+
     finally:
         db.close()
 
@@ -128,6 +132,7 @@ def show_algorithms():
 @app.route("/algorithm/save", methods=["POST"])
 def save_algorithm():
     db = database.get_session()
+
     try:
         algorithm_id = request.form.get("algorithm_id", type=int)
         name = request.form.get("name", "").strip()
@@ -145,6 +150,7 @@ def save_algorithm():
                 return redirect(url_for("show_algorithms"))
 
             algo = crud.update_algorithm(db, algorithm_id, name, algo_type)
+
             if algo:
                 flash("Algoritmul a fost actualizat cu succes.", "success")
             else:
@@ -160,6 +166,7 @@ def save_algorithm():
     except Exception as exc:
         db.rollback()
         flash(f"Eroare la salvarea algoritmului: {exc}", "danger")
+
     finally:
         db.close()
 
@@ -169,15 +176,19 @@ def save_algorithm():
 @app.route("/algorithm/delete/<int:algo_id>")
 def delete_algorithm(algo_id):
     db = database.get_session()
+
     try:
         deleted = crud.delete_algorithm(db, algo_id)
+
         if deleted:
             flash("Algoritmul a fost șters cu succes.", "warning")
         else:
             flash("Algoritmul nu a fost găsit.", "danger")
+
     except Exception as exc:
         db.rollback()
         flash(f"Eroare la ștergerea algoritmului: {exc}", "danger")
+
     finally:
         db.close()
 
@@ -187,6 +198,7 @@ def delete_algorithm(algo_id):
 @app.route("/keys")
 def show_keys():
     db = database.get_session()
+
     try:
         pagination = crud.get_keys_paginated(db, get_page(), get_per_page())
         algorithms = crud.get_all_algorithms(db)
@@ -197,6 +209,7 @@ def show_keys():
             algorithms=algorithms,
             pagination=pagination
         )
+
     finally:
         db.close()
 
@@ -204,6 +217,7 @@ def show_keys():
 @app.route("/key/save", methods=["POST"])
 def save_key():
     db = database.get_session()
+
     try:
         algorithm_id = request.form.get("algorithm_id", type=int)
         key_value = request.form.get("key_value", "").strip()
@@ -224,6 +238,7 @@ def save_key():
     except Exception as exc:
         db.rollback()
         flash(f"Eroare la salvarea cheii: {exc}", "danger")
+
     finally:
         db.close()
 
@@ -233,6 +248,7 @@ def save_key():
 @app.route("/key/generate-aes", methods=["POST"])
 def generate_aes_key():
     db = database.get_session()
+
     try:
         algorithm_id = request.form.get("algorithm_id", type=int)
         algorithm = crud.get_algorithm_by_id(db, algorithm_id)
@@ -252,6 +268,7 @@ def generate_aes_key():
     except Exception as exc:
         db.rollback()
         flash(f"Eroare la generarea cheii AES: {exc}", "danger")
+
     finally:
         db.close()
 
@@ -261,6 +278,7 @@ def generate_aes_key():
 @app.route("/key/generate-rsa", methods=["POST"])
 def generate_rsa_key():
     db = database.get_session()
+
     try:
         algorithm_id = request.form.get("algorithm_id", type=int)
         algorithm = crud.get_algorithm_by_id(db, algorithm_id)
@@ -280,6 +298,7 @@ def generate_rsa_key():
     except Exception as exc:
         db.rollback()
         flash(f"Eroare la generarea cheii RSA: {exc}", "danger")
+
     finally:
         db.close()
 
@@ -289,15 +308,19 @@ def generate_rsa_key():
 @app.route("/key/delete/<int:key_id>")
 def delete_key(key_id):
     db = database.get_session()
+
     try:
         deleted = crud.delete_key(db, key_id)
+
         if deleted:
             flash("Cheia a fost ștearsă cu succes.", "warning")
         else:
             flash("Cheia nu a fost găsită.", "danger")
+
     except Exception as exc:
         db.rollback()
         flash(f"Eroare la ștergerea cheii: {exc}", "danger")
+
     finally:
         db.close()
 
@@ -307,6 +330,7 @@ def delete_key(key_id):
 @app.route("/frameworks")
 def show_frameworks():
     db = database.get_session()
+
     try:
         edit_framework_id = request.args.get("edit_framework", type=int)
         pagination = crud.get_frameworks_paginated(db, get_page(), get_per_page())
@@ -318,6 +342,7 @@ def show_frameworks():
             pagination=pagination,
             edit_framework=edit_framework
         )
+
     finally:
         db.close()
 
@@ -325,6 +350,7 @@ def show_frameworks():
 @app.route("/framework/save", methods=["POST"])
 def save_framework():
     db = database.get_session()
+
     try:
         framework_id = request.form.get("framework_id", type=int)
         name = request.form.get("name", "").strip()
@@ -341,6 +367,7 @@ def save_framework():
                 return redirect(url_for("show_frameworks"))
 
             framework = crud.update_framework(db, framework_id, name)
+
             if framework:
                 flash("Framework-ul a fost actualizat cu succes.", "success")
             else:
@@ -356,6 +383,7 @@ def save_framework():
     except Exception as exc:
         db.rollback()
         flash(f"Eroare la salvarea framework-ului: {exc}", "danger")
+
     finally:
         db.close()
 
@@ -365,15 +393,19 @@ def save_framework():
 @app.route("/framework/delete/<int:framework_id>")
 def delete_framework(framework_id):
     db = database.get_session()
+
     try:
         deleted = crud.delete_framework(db, framework_id)
+
         if deleted:
             flash("Framework-ul a fost șters cu succes.", "warning")
         else:
             flash("Framework-ul nu a fost găsit.", "danger")
+
     except Exception as exc:
         db.rollback()
         flash(f"Eroare la ștergerea framework-ului: {exc}", "danger")
+
     finally:
         db.close()
 
@@ -383,13 +415,16 @@ def delete_framework(framework_id):
 @app.route("/files")
 def show_files():
     db = database.get_session()
+
     try:
         pagination = crud.get_files_paginated(db, get_page(), get_per_page())
+
         return render_template(
             "files.html",
             files=pagination["items"],
             pagination=pagination
         )
+
     finally:
         db.close()
 
@@ -397,6 +432,7 @@ def show_files():
 @app.route("/file/save", methods=["POST"])
 def save_file():
     db = database.get_session()
+
     try:
         uploaded_file = request.files.get("upload_file")
 
@@ -428,6 +464,7 @@ def save_file():
     except Exception as exc:
         db.rollback()
         flash(f"Eroare la salvarea fișierului: {exc}", "danger")
+
     finally:
         db.close()
 
@@ -437,15 +474,19 @@ def save_file():
 @app.route("/file/delete/<int:file_id>")
 def delete_file(file_id):
     db = database.get_session()
+
     try:
         deleted = crud.delete_file(db, file_id)
+
         if deleted:
             flash("Fișierul a fost șters din baza de date.", "warning")
         else:
             flash("Fișierul nu a fost găsit.", "danger")
+
     except Exception as exc:
         db.rollback()
         flash(f"Eroare la ștergerea fișierului: {exc}", "danger")
+
     finally:
         db.close()
 
@@ -491,6 +532,7 @@ def download_file(file_id, kind):
 @app.route("/operations")
 def show_operations():
     db = database.get_session()
+
     try:
         files = crud.get_all_files(db)
         algorithms = crud.get_all_algorithms(db)
@@ -504,6 +546,7 @@ def show_operations():
             keys=keys,
             frameworks=frameworks
         )
+
     finally:
         db.close()
 
@@ -511,6 +554,7 @@ def show_operations():
 @app.route("/operation/run", methods=["POST"])
 def run_operation():
     db = database.get_session()
+
     try:
         file_id = request.form.get("file_id", type=int)
         algorithm_id = request.form.get("algorithm_id", type=int)
@@ -597,14 +641,24 @@ def run_operation():
             framework_id=framework.id,
             key_id=key.id,
             operation=operation_label,
+
             time_taken_ms=benchmark_result["time_taken_ms"],
             memory_used_kb=benchmark_result["memory_used_kb"],
+            total_time_ms=benchmark_result["total_time_ms"],
+
             file_size_bytes=file_size_bytes,
             result_hash=result_hash,
+
             runs_count=benchmark_result["runs_count"],
+
             avg_time_ms=benchmark_result["avg_time_ms"],
             min_time_ms=benchmark_result["min_time_ms"],
             max_time_ms=benchmark_result["max_time_ms"],
+
+            avg_total_time_ms=benchmark_result["avg_total_time_ms"],
+            min_total_time_ms=benchmark_result["min_total_time_ms"],
+            max_total_time_ms=benchmark_result["max_total_time_ms"],
+
             avg_memory_kb=benchmark_result["avg_memory_kb"],
             min_memory_kb=benchmark_result["min_memory_kb"],
             max_memory_kb=benchmark_result["max_memory_kb"]
@@ -612,13 +666,16 @@ def run_operation():
 
         flash(
             f"Operația de {operation_label.lower()} a fost realizată cu succes. "
-            f"Timp mediu: {benchmark_result['avg_time_ms']} ms din {benchmark_result['runs_count']} rulări.",
+            f"Timp execuție mediu: {benchmark_result['avg_time_ms']} ms. "
+            f"Timp total mediu: {benchmark_result['avg_total_time_ms']} ms. "
+            f"Număr rulări: {benchmark_result['runs_count']}.",
             "success"
         )
 
     except Exception as exc:
         db.rollback()
         flash(f"Eroare la executarea operației: {exc}", "danger")
+
     finally:
         db.close()
 
@@ -628,6 +685,7 @@ def run_operation():
 @app.route("/performances")
 def show_performances():
     db = database.get_session()
+
     try:
         pagination = crud.get_performances_paginated(db, get_page(), get_per_page())
         summary = crud.get_performance_summary(db)
@@ -636,7 +694,9 @@ def show_performances():
             f"{row['algorithm_name']} / {row['framework_name']} / {row['operation']}"
             for row in summary
         ]
-        chart_times = [row["avg_time_ms"] for row in summary]
+
+        chart_execution_times = [row["avg_time_ms"] for row in summary]
+        chart_total_times = [row["avg_total_time_ms"] for row in summary]
         chart_memory = [row["avg_memory_kb"] for row in summary]
 
         return render_template(
@@ -645,9 +705,11 @@ def show_performances():
             pagination=pagination,
             summary=summary,
             chart_labels=chart_labels,
-            chart_times=chart_times,
+            chart_execution_times=chart_execution_times,
+            chart_total_times=chart_total_times,
             chart_memory=chart_memory
         )
+
     finally:
         db.close()
 
@@ -655,15 +717,19 @@ def show_performances():
 @app.route("/performance/delete/<int:performance_id>")
 def delete_performance(performance_id):
     db = database.get_session()
+
     try:
         deleted = crud.delete_performance(db, performance_id)
+
         if deleted:
             flash("Înregistrarea de performanță a fost ștearsă.", "warning")
         else:
             flash("Înregistrarea de performanță nu a fost găsită.", "danger")
+
     except Exception as exc:
         db.rollback()
         flash(f"Eroare la ștergerea performanței: {exc}", "danger")
+
     finally:
         db.close()
 

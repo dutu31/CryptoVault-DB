@@ -8,13 +8,17 @@
             <span class="badge bg-light text-dark">{{ pagination.total }} înregistrări</span>
         </div>
     </div>
+
     <div class="card-body p-4">
-        <p class="section-subtitle mb-4">Rezultatele de performanță sunt create automat după operațiile de criptare și decriptare.</p>
+        <p class="section-subtitle mb-4">
+            Rezultatele de performanță sunt create automat după operațiile de criptare și decriptare.
+        </p>
 
         <div class="row g-4 mb-4">
             <div class="col-xl-6">
                 <div class="card table-card h-100">
                     <div class="card-header">Grafic timp mediu</div>
+
                     <div class="card-body">
                         <canvas id="timeChart"></canvas>
                     </div>
@@ -24,6 +28,7 @@
             <div class="col-xl-6">
                 <div class="card table-card h-100">
                     <div class="card-header">Grafic memorie medie</div>
+
                     <div class="card-body">
                         <canvas id="memoryChart"></canvas>
                     </div>
@@ -33,9 +38,10 @@
 
         <div class="card table-card mb-4">
             <div class="card-header">Rezumat performanțe</div>
+
             <div class="card-body">
                 <div class="table-responsive">
-                    <table class="table table-hover align-middle">
+                    <table class="table table-hover table-sm align-middle">
                         <thead>
                             <tr>
                                 <th>Algoritm</th>
@@ -43,12 +49,14 @@
                                 <th>Operație</th>
                                 <th>Înregistrări</th>
                                 <th>Total rulări</th>
-                                <th>Timp mediu</th>
-                                <th>Timp minim</th>
-                                <th>Timp maxim</th>
+                                <th>Timp de execuție criptografică mediu</th>
+                                <th>Timp de execuție criptografică min/max</th>
+                                <th>Timp total al operației mediu</th>
+                                <th>Timp total al operației min/max</th>
                                 <th>Memorie medie</th>
                             </tr>
                         </thead>
+
                         <tbody>
                         {% for row in summary %}
                             <tr>
@@ -58,80 +66,192 @@
                                 <td>{{ row.records_count }}</td>
                                 <td>{{ row.runs_total }}</td>
                                 <td>{{ row.avg_time_ms }} ms</td>
-                                <td>{{ row.min_time_ms }} ms</td>
-                                <td>{{ row.max_time_ms }} ms</td>
+                                <td>{{ row.min_time_ms }} / {{ row.max_time_ms }} ms</td>
+                                <td>{{ row.avg_total_time_ms }} ms</td>
+                                <td>{{ row.min_total_time_ms }} / {{ row.max_total_time_ms }} ms</td>
                                 <td>{{ row.avg_memory_kb }} KB</td>
                             </tr>
                         {% else %}
                             <tr>
-                                <td colspan="9" class="text-center text-muted py-4">Nu există date pentru rezumat.</td>
+                                <td colspan="10" class="text-center text-muted py-4">
+                                    Nu există date pentru rezumat.
+                                </td>
                             </tr>
                         {% endfor %}
                         </tbody>
                     </table>
+                </div>
+
+                <div class="small-muted mt-3">
+                    <strong>Timp de execuție criptografică</strong> = timpul măsurat pentru execuția criptografică efectivă.
+                    <br>
+                    <strong>Timp total al operației</strong> = timpul complet al operației, incluzând pregătirea și apelul framework-ului ales.
                 </div>
             </div>
         </div>
 
         <div class="card table-card">
-            <div class="card-header">Lista performanțe</div>
-            <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle">
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Fișier</th>
-                                <th>Algoritm</th>
-                                <th>Framework</th>
-                                <th>Cheie</th>
-                                <th>Operație</th>
-                                <th>Rulări</th>
-                                <th>Timp mediu</th>
-                                <th>Timp min/max</th>
-                                <th>Memorie medie</th>
-                                <th>Dimensiune rezultat</th>
-                                <th>Hash rezultat</th>
-                                <th class="text-end">Acțiune</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                        {% for perf in performances %}
-                            <tr>
-                                <td>{{ perf.id }}</td>
-                                <td>{{ perf.file.original_name if perf.file else '-' }}</td>
-                                <td>{{ perf.algorithm.name if perf.algorithm else '-' }}</td>
-                                <td>{{ perf.framework.name if perf.framework else '-' }}</td>
-                                <td>{{ perf.key_id if perf.key_id else '-' }}</td>
-                                <td>{{ perf.operation }}</td>
-                                <td>{{ perf.runs_count if perf.runs_count else 1 }}</td>
-                                <td>{{ perf.avg_time_ms if perf.avg_time_ms is not none else (perf.time_taken_ms if perf.time_taken_ms is not none else '-') }} ms</td>
-                                <td>
-                                    {{ perf.min_time_ms if perf.min_time_ms is not none else (perf.time_taken_ms if perf.time_taken_ms is not none else '-') }}
-                                    /
-                                    {{ perf.max_time_ms if perf.max_time_ms is not none else (perf.time_taken_ms if perf.time_taken_ms is not none else '-') }}
-                                    ms
-                                </td>
-                                <td>{{ perf.avg_memory_kb if perf.avg_memory_kb is not none else (perf.memory_used_kb if perf.memory_used_kb is not none else '-') }} KB</td>
-                                <td>{{ perf.file_size_bytes if perf.file_size_bytes is not none else '-' }} bytes</td>
-                                <td>{{ perf.result_hash[:20] ~ '...' if perf.result_hash and perf.result_hash|length > 20 else (perf.result_hash or '-') }}</td>
-                                <td class="text-end">
-                                    <a href="{{ url_for('delete_performance', performance_id=perf.id) }}" class="btn btn-danger btn-sm btn-action"
-                                       onclick="return confirm('Sigur vrei să ștergi această înregistrare?')">Șterge</a>
-                                </td>
-                            </tr>
-                        {% else %}
-                            <tr>
-                                <td colspan="13" class="text-center text-muted py-4">Nu există înregistrări de performanță în baza de date.</td>
-                            </tr>
-                        {% endfor %}
-                        </tbody>
-                    </table>
+            <div class="card-header">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <span>Lista performanțe</span>
+                    <span class="badge bg-light text-dark">
+                        Pagina {{ pagination.page }} din {{ pagination.pages }}
+                    </span>
                 </div>
+            </div>
+
+            <div class="card-body">
+                {% if performances %}
+                    <div class="d-flex flex-column gap-3">
+                        {% for perf in performances %}
+                            <div class="border rounded-3 p-3 bg-light">
+                                <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-3">
+                                    <div>
+                                        <h5 class="mb-1">
+                                            {{ perf.file.original_name if perf.file else '-' }}
+                                        </h5>
+
+                                        <div class="small-muted">
+                                            {{ perf.algorithm.name if perf.algorithm else '-' }}
+                                            ·
+                                            {{ perf.framework.name if perf.framework else '-' }}
+                                            ·
+                                            {{ perf.operation }}
+                                        </div>
+                                    </div>
+
+                                    <div class="text-end">
+                                        <span class="badge bg-dark">
+                                            {{ perf.runs_count if perf.runs_count else 1 }} rulări
+                                        </span>
+
+                                        <a href="{{ url_for('delete_performance', performance_id=perf.id) }}"
+                                           class="btn btn-danger btn-sm ms-2"
+                                           onclick="return confirm('Sigur vrei să ștergi această înregistrare?')">
+                                            Șterge
+                                        </a>
+                                    </div>
+                                </div>
+
+                                <div class="row g-3">
+                                    <div class="col-lg-3 col-md-6">
+                                        <div class="border rounded-3 p-3 bg-white h-100">
+                                            <div class="small-muted mb-2">Date operație</div>
+
+                                            <div class="mb-2">
+                                                <strong>Cheie:</strong>
+                                                <br>
+                                                {{ perf.key.algorithm.name if perf.key and perf.key.algorithm else '-' }}
+                                            </div>
+
+                                            <div class="mb-2">
+                                                <strong>Operație:</strong>
+                                                <br>
+                                                {{ perf.operation }}
+                                            </div>
+
+                                            <div>
+                                                <strong>Rulări:</strong>
+                                                <br>
+                                                {{ perf.runs_count if perf.runs_count else 1 }}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-lg-3 col-md-6">
+                                        <div class="border rounded-3 p-3 bg-white h-100">
+                                            <div class="small-muted mb-2">
+                                                Timp de execuție criptografică
+                                            </div>
+
+                                            <div class="mb-2">
+                                                <strong>Mediu:</strong>
+                                                <br>
+                                                {{ perf.avg_time_ms if perf.avg_time_ms is not none else (perf.time_taken_ms if perf.time_taken_ms is not none else '-') }} ms
+                                            </div>
+
+                                            <div class="mb-2">
+                                                <strong>Minim:</strong>
+                                                <br>
+                                                {{ perf.min_time_ms if perf.min_time_ms is not none else (perf.time_taken_ms if perf.time_taken_ms is not none else '-') }} ms
+                                            </div>
+
+                                            <div>
+                                                <strong>Maxim:</strong>
+                                                <br>
+                                                {{ perf.max_time_ms if perf.max_time_ms is not none else (perf.time_taken_ms if perf.time_taken_ms is not none else '-') }} ms
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-lg-3 col-md-6">
+                                        <div class="border rounded-3 p-3 bg-white h-100">
+                                            <div class="small-muted mb-2">
+                                                Timp total al operației
+                                            </div>
+
+                                            <div class="mb-2">
+                                                <strong>Mediu:</strong>
+                                                <br>
+                                                {{ perf.avg_total_time_ms if perf.avg_total_time_ms is not none else (perf.total_time_ms if perf.total_time_ms is not none else '-') }} ms
+                                            </div>
+
+                                            <div class="mb-2">
+                                                <strong>Minim:</strong>
+                                                <br>
+                                                {{ perf.min_total_time_ms if perf.min_total_time_ms is not none else (perf.total_time_ms if perf.total_time_ms is not none else '-') }} ms
+                                            </div>
+
+                                            <div>
+                                                <strong>Maxim:</strong>
+                                                <br>
+                                                {{ perf.max_total_time_ms if perf.max_total_time_ms is not none else (perf.total_time_ms if perf.total_time_ms is not none else '-') }} ms
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-lg-3 col-md-6">
+                                        <div class="border rounded-3 p-3 bg-white h-100">
+                                            <div class="small-muted mb-2">
+                                                Memorie și rezultat
+                                            </div>
+
+                                            <div class="mb-2">
+                                                <strong>Memorie medie:</strong>
+                                                <br>
+                                                {{ perf.avg_memory_kb if perf.avg_memory_kb is not none else (perf.memory_used_kb if perf.memory_used_kb is not none else '-') }} KB
+                                            </div>
+
+                                            <div class="mb-2">
+                                                <strong>Dimensiune rezultat:</strong>
+                                                <br>
+                                                {{ perf.file_size_bytes if perf.file_size_bytes is not none else '-' }} bytes
+                                            </div>
+
+                                            <div>
+                                                <strong>Hash rezultat:</strong>
+                                                <br>
+                                                <span class="font-monospace small text-break">
+                                                    {{ perf.result_hash if perf.result_hash else '-' }}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="text-center text-muted py-4">
+                        Nu există înregistrări de performanță în baza de date.
+                    </div>
+                {% endif %}
 
                 {% include "_pagination.html" %}
 
-                <div class="small-muted mt-3">Performanțele nu se editează manual, deoarece sunt rezultate măsurate automat.</div>
+                <div class="small-muted mt-3">
+                    Performanțele nu se editează manual, deoarece sunt rezultate măsurate automat.
+                </div>
             </div>
         </div>
     </div>
@@ -140,21 +260,35 @@
 
 {% block scripts %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script id="chart-labels-data" type="application/json">{{ chart_labels|tojson }}</script>
+<script id="chart-execution-times-data" type="application/json">{{ chart_execution_times|tojson }}</script>
+<script id="chart-total-times-data" type="application/json">{{ chart_total_times|tojson }}</script>
+<script id="chart-memory-data" type="application/json">{{ chart_memory|tojson }}</script>
+
 <script>
-const chartLabels = {{ chart_labels|tojson }};
-const chartTimes = {{ chart_times|tojson }};
-const chartMemory = {{ chart_memory|tojson }};
+const chartLabels = JSON.parse(document.getElementById("chart-labels-data").textContent);
+const chartExecutionTimes = JSON.parse(document.getElementById("chart-execution-times-data").textContent);
+const chartTotalTimes = JSON.parse(document.getElementById("chart-total-times-data").textContent);
+const chartMemory = JSON.parse(document.getElementById("chart-memory-data").textContent);
 
 const timeCanvas = document.getElementById("timeChart");
+
 if (timeCanvas) {
     new Chart(timeCanvas, {
         type: "bar",
         data: {
             labels: chartLabels,
-            datasets: [{
-                label: "Timp mediu (ms)",
-                data: chartTimes
-            }]
+            datasets: [
+                {
+                    label: "Timp de execuție criptografică mediu (ms)",
+                    data: chartExecutionTimes
+                },
+                {
+                    label: "Timp total al operației mediu (ms)",
+                    data: chartTotalTimes
+                }
+            ]
         },
         options: {
             responsive: true,
@@ -168,15 +302,18 @@ if (timeCanvas) {
 }
 
 const memoryCanvas = document.getElementById("memoryChart");
+
 if (memoryCanvas) {
     new Chart(memoryCanvas, {
         type: "bar",
         data: {
             labels: chartLabels,
-            datasets: [{
-                label: "Memorie medie (KB)",
-                data: chartMemory
-            }]
+            datasets: [
+                {
+                    label: "Memorie medie (KB)",
+                    data: chartMemory
+                }
+            ]
         },
         options: {
             responsive: true,

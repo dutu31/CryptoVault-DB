@@ -10,6 +10,27 @@ document.addEventListener("DOMContentLoaded", function() {
         }, 5000);
     }
 
+    const algorithmNameSelect = document.getElementById("algorithmNameSelect");
+    const algorithmTypeInput = document.getElementById("algorithmTypeInput");
+    const algorithmTypeDisplay = document.getElementById("algorithmTypeDisplay");
+
+    if (algorithmNameSelect && algorithmTypeInput && algorithmTypeDisplay) {
+        function updateAlgorithmType() {
+            const selectedOption = algorithmNameSelect.options[algorithmNameSelect.selectedIndex];
+
+            if (selectedOption && selectedOption.dataset.type) {
+                algorithmTypeInput.value = selectedOption.dataset.type;
+                algorithmTypeDisplay.value = selectedOption.dataset.type;
+            } else {
+                algorithmTypeInput.value = "";
+                algorithmTypeDisplay.value = "";
+            }
+        }
+
+        algorithmNameSelect.addEventListener("change", updateAlgorithmType);
+        updateAlgorithmType();
+    }
+
     const algorithmSelect = document.getElementById("algorithmSelect");
     const keySelect = document.getElementById("keySelect");
 
